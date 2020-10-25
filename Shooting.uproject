@@ -1,0 +1,16 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "{CBC2B2DD-4434-9586-0798-4BA3EF645759}",
+	"Category": "",
+	"Description": "",
+	"Modules": [
+		{
+			"Name": "Shooting",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"AdditionalDependencies": [
+				"Engine"
+			]
+		}
+	]
+}
