@@ -10,7 +10,7 @@ HW2：简易打靶游戏
 
 联机时可以正确复制物体与变量。（但目前的 Session 的部分存在一些没有调出来的问题：在找 Session 的时候会找不到已创建的 Session。如果打包游戏时直接打包主游戏关卡，使用 `?listen` 和 `127.0.0.1` 的参数可以本机联机，确实可以正确复制物体与变量）
 
-打包文件链接：https://pan.baidu.com/s/1Rl3nWbO1W_5z0mglVPgAQQ#list/path=%2F（1471）
+打包文件链接：https://pan.baidu.com/s/17pF0-T2QoPnax1b3uLbvLg（1471）
 
 
 
