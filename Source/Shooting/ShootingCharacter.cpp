@@ -10,7 +10,11 @@
 #include "GameFramework/SpringArmComponent.h"
 
 #include "ShootingPlayerState.h"
+#include "ShootingPlayerController.h"
+#include "ShootingGameInstance.h"
+#include "Blueprint/UserWidget.h"
 #include "Kismet/GameplayStatics.h"
+#include "Misc/OutputDeviceDebug.h"
 
 //////////////////////////////////////////////////////////////////////////
 // AShootingCharacter
@@ -93,7 +97,6 @@ void AShootingCharacter::OnResetVR()
 
 void AShootingCharacter::TouchStarted(ETouchIndex::Type FingerIndex, FVector Location)
 {
-	Shoot();
 	// Jump();
 }
 
@@ -174,7 +177,7 @@ void AShootingCharacter::Shoot()
 			UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), HitParticle, ParticleTrans);
 		}
 
-		if (HitActor->GetFName() == FName("Target_BP"))
+		if (bInGame && HitActor->GetFName() == FName("Target_BP"))
 		{
 			FVector TargetLocation = HitActor->GetActorLocation();
 			const float Diff = (TargetLocation - HitLocation).Size();
@@ -197,4 +200,55 @@ void AShootingCharacter::Shoot()
 			ShootingPlayerState->IncreaseScore(Score);
 		}
 	}
+}
+
+void AShootingCharacter::StartTimer()
+{
+	AShootingPlayerState* ShootingPlayerState = GetPlayerState<AShootingPlayerState>();
+	ShootingPlayerState->ResetScore();
+	const static float GAME_TIME = 30.0f;
+	GetWorldTimerManager().SetTimer(ShootTimerHandle, this, &AShootingCharacter::OnTimerEnd, GAME_TIME);
+	bInGame = true;
+}
+
+void AShootingCharacter::OnTimerEnd()
+{
+	bInGame = false;
+	GetWorldTimerManager().ClearTimer(ShootTimerHandle);
+
+	AShootingPlayerState* ShootingPlayerState = GetPlayerState<AShootingPlayerState>();
+	Cast<UShootingGameInstance>(GetGameInstance())->SetPlayerScore(ShootingPlayerState->GetShootingScore());
+
+	AShootingPlayerController* PlayerController = Cast<AShootingPlayerController>(GetController());
+	if (!PauseMenu)
+	{
+		FStringClassReference PauseMenuRef(TEXT("/Game/ThirdPersonCPP/Blueprints/PauseMenuUI.PauseMenuUI_C"));
+		UClass* PauseMenuClass = PauseMenuRef.TryLoadClass<UUserWidget>();
+		if (!PauseMenuClass)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Can't load widget"));
+			return;
+		}
+		PauseMenu = CreateWidget<UUserWidget>(PlayerController, PauseMenuClass);
+	}
+
+	FOutputDeviceDebug DebugDevice;
+	PauseMenu->CallFunctionByNameWithArguments(TEXT("SetValues"), DebugDevice, this, true);
+
+	PauseMenu->AddToViewport();
+	FInputModeUIOnly InputMode;
+	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+	InputMode.SetWidgetToFocus(PauseMenu->TakeWidget());
+	PlayerController->SetInputMode(InputMode);
+	PlayerController->bShowMouseCursor = true;
+
+}
+
+int32 AShootingCharacter::GetTimeRemaining() const
+{
+	if (!bInGame)
+	{
+		return -1;
+	}
+	return (int32) GetWorldTimerManager().GetTimerRemaining(ShootTimerHandle);
 }

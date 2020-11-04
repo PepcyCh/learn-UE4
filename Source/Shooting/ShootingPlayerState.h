@@ -19,6 +19,10 @@ class SHOOTING_API AShootingPlayerState : public APlayerState
 	void IncreaseScoreServer_Implementation(uint32 delta);
 	bool IncreaseScoreServer_Validate(uint32 delta);
 
+	UFUNCTION(Server, Reliable)
+	void ResetScoreServer();
+	void ResetScoreServer_Implementation();
+
 public:
 	UPROPERTY(VisibleAnywhere, Replicated)
 	uint32 Id = 0;
@@ -28,6 +32,6 @@ public:
 	void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	void IncreaseScore(uint32 delta = 1);
-	
+	void ResetScore();
 	uint32 GetShootingScore() const;
 };

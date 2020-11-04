@@ -7,6 +7,9 @@
 #include "ShootingGameState.h"
 #include "Engine/Canvas.h"
 
+#include "ShootingGameInstance.h"
+#include "ShootingCharacter.h"
+
 AShootingHUD::AShootingHUD()
 {
     ConstructorHelpers::FObjectFinder<UFont> FontObject(TEXT("/Game/Fonts/ROBOTO-MEDIUM_Font.ROBOTO-MEDIUM_Font"));
@@ -57,17 +60,33 @@ void AShootingHUD::DrawHUD()
     float ScoreTextY = 10.0f;
     {
         AShootingPlayerState* PlayerState = Cast<AShootingPlayerState>(GetOwningPlayerController()->PlayerState);
-        uint32 Id = PlayerState->Id;
-        FText PlayerText = FText::Format(FTextFormat::FromString("Current Player - Player {0}"), Id);
-        DrawText(PlayerText.ToString(), FColor::Orange, 10, ScoreTextY, Font, 3);
+        FString PlayerName = Cast<UShootingGameInstance>(GetGameInstance())->GetPlayerName();
+        FText PlayerText = FText::Format(FTextFormat::FromString("Current Player - {0}"), FText::FromString(PlayerName));
+        DrawText(PlayerText.ToString(), FColor::Orange, 10.0f, ScoreTextY, Font, 3);
         ScoreTextY += 40.0f;
     }
     for (AShootingPlayerState* PlayerState : ShootingPlayerArray)
     {
-        uint32 Id = PlayerState->Id;
+        FString PlayerName = PlayerState->GetPlayerName();
         uint32 CurrentScore = PlayerState->GetShootingScore();
-        FText ScoreText = FText::Format(FTextFormat::FromString("Player {0} - Score: {1}"), Id, CurrentScore);
-        DrawText(ScoreText.ToString(), FColor::Orange, 10, ScoreTextY, Font, 3);
+        FText ScoreText = FText::Format(FTextFormat::FromString("{0} - Score: {1}"), FText::FromString(PlayerName), CurrentScore);
+        DrawText(ScoreText.ToString(), FColor::Orange, 10.0f, ScoreTextY, Font, 3);
         ScoreTextY += 40.0f;
+    }
+    {
+        int32 Time = Cast<AShootingCharacter>(GetOwningPlayerController()->GetPawn())->GetTimeRemaining();
+        if (Time < 0)
+        {
+            DrawText("00:00", FColor::Red, Canvas->ClipX - 150.0f, 10.0f, Font, 3);
+        }
+        else
+        {
+            int32 Minute = Time / 60;
+            int32 Second = Time % 60;
+            FNumberFormattingOptions Options;
+            Options.MinimumIntegralDigits = 2;
+            FText TimeText = FText::Format(FTextFormat::FromString("{0}:{1}"), FText::AsNumber(Minute, &Options), FText::AsNumber(Second, &Options));
+            DrawText(TimeText.ToString(), FColor::Blue, Canvas->ClipX - 150.0f, 10.0f, Font, 3);
+        }
     }
 }

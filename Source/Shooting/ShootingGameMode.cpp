@@ -4,6 +4,7 @@
 #include "ShootingCharacter.h"
 #include "UObject/ConstructorHelpers.h"
 
+#include "ShootingGameInstance.h"
 #include "ShootingGameState.h"
 #include "ShootingPlayerState.h"
 #include "ShootingPlayerController.h"
@@ -36,6 +37,7 @@ AShootingGameMode::AShootingGameMode()
 			break;
 		}
 	}
+	// UE_LOG(LogTemp, Warning, TEXT("GM ctor"));
 }
 
 void AShootingGameMode::PostLogin(APlayerController* NewPlayer)
@@ -87,6 +89,8 @@ void AShootingGameMode::RestartPlayer(AController* NewPlayer)
 	APawn* Pawn = SpawnDefaultPawnAtTransform(Controller, Transform);
 	Controller->SetPawn(Pawn);
 	Controller->SetupInputComponent();
+	Controller->StartPlayerTimer();
+	PlayerState->SetPlayerName(Cast<UShootingGameInstance>(GetGameInstance())->GetPlayerName());
 }
 
 void AShootingGameMode::Tick(float DeltaSeconds)

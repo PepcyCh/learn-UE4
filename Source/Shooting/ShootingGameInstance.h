@@ -6,6 +6,7 @@
 #include "Engine/GameInstance.h"
 #include "../Plugins/Online/OnlineSubsystem/Source/Public/Interfaces/OnlineSessionInterface.h"
 #include "Delegates/IDelegateInstance.h"
+#include "ShootingSaveGame.h"
 #include "ShootingGameInstance.generated.h"
 
 class IOnlineSubsystem;
@@ -16,8 +17,43 @@ class SHOOTING_API UShootingGameInstance : public UGameInstance
 {
 	GENERATED_BODY()
 
+	UPROPERTY(VisibleAnywhere)
+	FString PlayerName;
+
+	UPROPERTY(VisibleAnywhere)
+	uint32 PlayerScore;
+
+	UPROPERTY(VisibleAnywhere)
+	TArray<FPlayerScorePair> RankList;
+	UPROPERTY(VisibleAnywhere)
+	UShootingSaveGame* SaveGameInstance = nullptr;
+
 public:
+
 	UShootingGameInstance(const FObjectInitializer& ObjectInitializer);
+
+	void Init() override;
+
+	UFUNCTION(BlueprintCallable, Category = "Network|Test")
+	void SetPlayerName(FString Name);
+	UFUNCTION(BlueprintCallable, Category = "Network|Test")
+	FString GetPlayerName() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Network|Test")
+	void SetPlayerScore(int32 Score);
+	UFUNCTION(BlueprintCallable, Category = "Network|Test")
+	int32 GetPlayerScore() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Network|Test")
+	void InsertPlayerScorePair(FString RecordedPlayerName);
+	UFUNCTION(BlueprintCallable, Category = "Network|Test")
+	FString GetRankListNameStr() const;
+	UFUNCTION(BlueprintCallable, Category = "Network|Test")
+	FString GetRankListScoreStr() const;
+
+	void LoadGameRecords();
+	UFUNCTION(BlueprintCallable, Category = "Network|Test")
+	void SaveGameRecords();
 
 	bool HostSession(TSharedPtr<const FUniqueNetId> UserId, FName SessionName, bool bIsLAN, bool bIsPresence, int32 MaxNumPlayers);
 	void FindSessions(TSharedPtr<const FUniqueNetId> UserId, bool bIsLAN, bool bIsPresence);

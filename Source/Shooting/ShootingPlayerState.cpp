@@ -30,6 +30,22 @@ bool AShootingPlayerState::IncreaseScoreServer_Validate(uint32 delta)
     return delta <= 10;
 }
 
+void AShootingPlayerState::ResetScore()
+{
+    if (!GetWorld()->IsServer())
+    {
+        ResetScoreServer();
+    }
+    else
+    {
+        ShootingScore = 0;
+    }
+}
+void AShootingPlayerState::ResetScoreServer_Implementation()
+{
+    ShootingScore = 0;
+}
+
 uint32 AShootingPlayerState::GetShootingScore() const
 {
     return ShootingScore;

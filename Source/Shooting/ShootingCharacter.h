@@ -19,6 +19,15 @@ class AShootingCharacter : public ACharacter
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	class UCameraComponent* FollowCamera;
 
+	UPROPERTY(VisibleAnywhere)
+	bool bInGame = false;
+
+	UPROPERTY(VisibleAnywhere)
+	FTimerHandle ShootTimerHandle;
+
+	UPROPERTY(VisibleAnywhere)
+	UUserWidget* PauseMenu = nullptr;
+
 public:
 	AShootingCharacter();
 
@@ -62,8 +71,6 @@ protected:
 	/** Handler for when a touch input stops. */
 	void TouchStopped(ETouchIndex::Type FingerIndex, FVector Location);
 
-	void Shoot();
-
 protected:
 	// APawn interface
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
@@ -74,5 +81,12 @@ public:
 	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
 	/** Returns FollowCamera subobject **/
 	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
+
+	UFUNCTION(BlueprintCallable, Category = "Network|Test")
+	void Shoot();
+
+	void StartTimer();
+	void OnTimerEnd();
+	int32 GetTimeRemaining() const;
 };
 

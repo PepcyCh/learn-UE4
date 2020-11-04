@@ -15,7 +15,9 @@ public class Shooting : ModuleRules
 			"InputCore",
 			"HeadMountedDisplay",
 			"OnlineSubsystem",
-			"OnlineSubsystemUtils"
+			"OnlineSubsystemUtils",
+			"UMG",
+			"SlateCore"
 		});
 
 		DynamicallyLoadedModuleNames.Add("OnlineSubsystemNull");

@@ -13,7 +13,10 @@ UCLASS()
 class SHOOTING_API AShootingPlayerController : public APlayerController
 {
 	GENERATED_BODY()
-	
+
 public:
 	void SetupInputComponent() override;
+
+	UFUNCTION(BlueprintCallable, Category = "Network|Test")
+	void StartPlayerTimer();
 };

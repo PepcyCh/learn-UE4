@@ -3,10 +3,17 @@
 #include "ShootingPlayerController.h"
 
 #include "ShootingCharacter.h"
+#include "ShootingGameInstance.h"
 
 void AShootingPlayerController::SetupInputComponent()
 {
     Super::SetupInputComponent();
 
     Possess(GetPawn<AShootingCharacter>());
+
+}
+
+void AShootingPlayerController::StartPlayerTimer()
+{
+    GetPawn<AShootingCharacter>()->StartTimer();
 }

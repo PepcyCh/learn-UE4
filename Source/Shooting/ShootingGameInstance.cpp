@@ -16,6 +16,111 @@ UShootingGameInstance::UShootingGameInstance(const FObjectInitializer& ObjectIni
 	OnDestroySessionCompleteDelegate = FOnDestroySessionCompleteDelegate::CreateUObject(this, &UShootingGameInstance::OnDestroySessionComplete);
 }
 
+void UShootingGameInstance::Init()
+{
+	SaveGameInstance = Cast<UShootingSaveGame>(UGameplayStatics::CreateSaveGameObject(UShootingSaveGame::StaticClass()));
+	if (!SaveGameInstance)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Failed to init"));
+	}
+	LoadGameRecords();
+}
+
+void UShootingGameInstance::SetPlayerName(FString Name)
+{
+	PlayerName = Name;
+}
+FString UShootingGameInstance::GetPlayerName() const
+{
+	return PlayerName;
+}
+
+void UShootingGameInstance::SetPlayerScore(int32 Score)
+{
+	PlayerScore = Score;
+}
+int32 UShootingGameInstance::GetPlayerScore() const
+{
+	return PlayerScore;
+}
+
+void UShootingGameInstance::InsertPlayerScorePair(FString RecordedPlayerName)
+{
+	const static int32 MAX_RECORD = 10;
+	if (RankList.Num() >= MAX_RECORD && PlayerScore < RankList[MAX_RECORD - 1].Score)
+	{
+		return;
+	}
+
+	FPlayerScorePair NewRecord { RecordedPlayerName, PlayerScore };
+	int32 Rank = RankList.Num();
+	for (int32 i = 0; i < RankList.Num(); i++)
+	{
+		if (NewRecord.Score > RankList[i].Score)
+		{
+			Rank = i;
+			break;
+		}
+	}
+	RankList.Add(FPlayerScorePair{ RecordedPlayerName, PlayerScore });
+	if (Rank == RankList.Num())
+	{
+		return;
+	}
+	for (int32 i = RankList.Num() - 1; i > Rank; i--)
+	{
+		RankList[i] = RankList[i - 1];
+	}
+	RankList[Rank] = NewRecord;
+	if (RankList.Num() > MAX_RECORD)
+	{
+		RankList.Pop();
+	}
+}
+FString UShootingGameInstance::GetRankListNameStr() const
+{
+	FString Res;
+	for (FPlayerScorePair Pair : RankList)
+	{
+		Res += Pair.Name + "\n";
+	}
+	return Res;
+}
+FString UShootingGameInstance::GetRankListScoreStr() const
+{
+	FString Res;
+	for (FPlayerScorePair Pair : RankList)
+	{
+		Res += FString::FromInt(Pair.Score) + "\n";
+	}
+	return Res;
+}
+
+void UShootingGameInstance::LoadGameRecords()
+{
+	UShootingSaveGame* SaveInstance = Cast<UShootingSaveGame>(UGameplayStatics::LoadGameFromSlot("ScoreRecords", 0));
+	if (SaveInstance)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Load successful"));
+		RankList = SaveInstance->RankList;
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Failed to load"));
+	}
+}
+void UShootingGameInstance::SaveGameRecords()
+{
+	if (!SaveGameInstance)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Failed to save"));
+		return;
+	}
+	UE_LOG(LogTemp, Warning, TEXT("Save successful"));
+	SaveGameInstance->RankList = RankList;
+	UGameplayStatics::SaveGameToSlot(SaveGameInstance, "ScoreRecords", 0);
+}
+
 bool UShootingGameInstance::HostSession(TSharedPtr<const FUniqueNetId> UserId, FName SessionName, bool bIsLAN, bool bIsPresence, int32 MaxNumPlayers)
 {
 	IOnlineSubsystem* OnlineSub = IOnlineSubsystem::Get();
@@ -97,6 +202,7 @@ bool UShootingGameInstance::JoinCertainSession(TSharedPtr<const FUniqueNetId> Us
 
 void UShootingGameInstance::StartOnlineGame(bool bIsLan, bool bIsPresence, int32 MaxNumPlayers)
 {
+	DestroySessionAndLeaveGame();
 	ULocalPlayer* Player = GetFirstGamePlayer();
 	HostSession(Player->GetPreferredUniqueNetId().GetUniqueNetId(), GameSessionName, bIsLan, bIsPresence, MaxNumPlayers);
 }
@@ -255,7 +361,7 @@ void UShootingGameInstance::OnDestroySessionComplete(FName SessionName, bool bWa
 		Sessions->ClearOnDestroySessionCompleteDelegate_Handle(OnDestroySessionCompleteDelegateHandle);
 		if (bWasSuccessful)
 		{
-			UGameplayStatics::OpenLevel(GetWorld(), "ThirdPersonExampleMap", true);
+			UGameplayStatics::OpenLevel(GetWorld(), "MainMenuMap", true);
 		}
 	}
 }
