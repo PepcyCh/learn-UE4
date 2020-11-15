@@ -24,6 +24,10 @@ class AShootingCharacter : public ACharacter
 
 	UPROPERTY(VisibleAnywhere)
 	FTimerHandle ShootTimerHandle;
+	UPROPERTY(VisibleAnywhere)
+	FTimerHandle BlockTimerHandle;
+	UPROPERTY(VisibleAnywhere)
+	FTimerHandle FireTimerHandle;
 
 	UPROPERTY(VisibleAnywhere)
 	UUserWidget* PauseMenu = nullptr;
@@ -41,6 +45,11 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
 	UParticleSystem* HitParticle;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
+	bool bIsBlocking = false;
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
+	bool bIsFiring = false;
 
 protected:
 
@@ -84,6 +93,13 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Network|Test")
 	void Shoot();
+	UFUNCTION(BlueprintCallable, Category = "Network|Test")
+	void ShootEnd();
+
+	UFUNCTION(BlueprintCallable, Category = "Network|Test")
+	void BlockBegin();
+	UFUNCTION(BlueprintCallable, Category = "Network|Test")
+	void BlockEnd();
 
 	void StartTimer();
 	void OnTimerEnd();

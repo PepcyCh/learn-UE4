@@ -4,6 +4,7 @@
 #include "ShootingPlayerState.h"
 
 #include "Net/UnrealNetwork.h"
+#include "Engine/World.h"
 
 AShootingPlayerState::AShootingPlayerState()
 {

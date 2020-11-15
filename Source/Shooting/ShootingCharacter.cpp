@@ -15,6 +15,9 @@
 #include "Blueprint/UserWidget.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/OutputDeviceDebug.h"
+#include "TimerManager.h"
+#include "Engine/World.h"
+#include "Engine/LocalPlayer.h"
 
 //////////////////////////////////////////////////////////////////////////
 // AShootingCharacter
@@ -66,9 +69,12 @@ void AShootingCharacter::SetupPlayerInputComponent(class UInputComponent* Player
 
 	// Set up gameplay key bindings
 	check(PlayerInputComponent);
-	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &AShootingCharacter::Shoot);
-	// PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &ACharacter::Jump);
-	// PlayerInputComponent->BindAction("Jump", IE_Released, this, &ACharacter::StopJumping);
+	// PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &AShootingCharacter::Shoot);
+	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &ACharacter::Jump);
+	PlayerInputComponent->BindAction("Jump", IE_Released, this, &ACharacter::StopJumping);
+	PlayerInputComponent->BindKey(EKeys::F, IE_Pressed, this, &AShootingCharacter::Shoot);
+	PlayerInputComponent->BindKey(EKeys::B, IE_Pressed, this, &AShootingCharacter::BlockBegin);
+	// PlayerInputComponent->BindKey(EKeys::B, IE_Released, this, &AShootingCharacter::BlockEnd);
 
 	PlayerInputComponent->BindAxis("MoveForward", this, &AShootingCharacter::MoveForward);
 	PlayerInputComponent->BindAxis("MoveRight", this, &AShootingCharacter::MoveRight);
@@ -148,11 +154,18 @@ void AShootingCharacter::MoveRight(float Value)
 
 void AShootingCharacter::Shoot()
 {
+	if (bIsBlocking || bIsFiring)
+	{
+		return;
+	}
 	AShootingPlayerState* ShootingPlayerState = GetPlayerState<AShootingPlayerState>();
 	if (ShootingPlayerState == NULL)
 	{
 		return;
 	}
+
+	bIsFiring = true;
+	GetWorldTimerManager().SetTimer(FireTimerHandle, this, &AShootingCharacter::ShootEnd, 1.0f);
 
 	const FVector Start = GetActorLocation() + FVector(10.0f, 20.0f, 50.0f);
 	const FVector Direction = FollowCamera->GetForwardVector();
@@ -202,6 +215,12 @@ void AShootingCharacter::Shoot()
 	}
 }
 
+void AShootingCharacter::ShootEnd()
+{
+	bIsFiring = false;
+	GetWorldTimerManager().ClearTimer(FireTimerHandle);
+}
+
 void AShootingCharacter::StartTimer()
 {
 	AShootingPlayerState* ShootingPlayerState = GetPlayerState<AShootingPlayerState>();
@@ -241,7 +260,6 @@ void AShootingCharacter::OnTimerEnd()
 	InputMode.SetWidgetToFocus(PauseMenu->TakeWidget());
 	PlayerController->SetInputMode(InputMode);
 	PlayerController->bShowMouseCursor = true;
-
 }
 
 int32 AShootingCharacter::GetTimeRemaining() const
@@ -251,4 +269,38 @@ int32 AShootingCharacter::GetTimeRemaining() const
 		return -1;
 	}
 	return (int32) GetWorldTimerManager().GetTimerRemaining(ShootTimerHandle);
+}
+
+void AShootingCharacter::BlockBegin()
+{
+	if (bIsBlocking || bIsFiring)
+	{
+		return;
+	}
+	TInlineComponentArray<UMeshComponent*> CompoArray;
+	GetComponents(CompoArray);
+	for (auto Compo : CompoArray)
+	{
+		if (Compo->GetFName() == FName("GunMesh"))
+		{
+			Compo->SetRelativeRotation(FRotator(-26.968733f, 253.489838f, 64.647484f));
+		}
+	}
+	bIsBlocking = true;
+	GetWorldTimerManager().SetTimer(BlockTimerHandle, this, &AShootingCharacter::BlockEnd, 2.5f);
+}
+
+void AShootingCharacter::BlockEnd()
+{
+	bIsBlocking = false;
+	TInlineComponentArray<UMeshComponent*> CompoArray;
+	GetComponents(CompoArray);
+	for (auto Compo : CompoArray)
+	{
+		if (Compo->GetFName() == FName("GunMesh"))
+		{
+			Compo->SetRelativeRotation(FRotator(32.799591f, 257.086487f, 155.704193f));
+		}
+	}
+	GetWorldTimerManager().ClearTimer(BlockTimerHandle);
 }

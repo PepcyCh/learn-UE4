@@ -9,6 +9,7 @@
 
 #include "ShootingGameInstance.h"
 #include "ShootingCharacter.h"
+#include "UObject/ConstructorHelpers.h"
 
 AShootingHUD::AShootingHUD()
 {

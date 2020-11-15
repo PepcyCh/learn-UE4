@@ -6,6 +6,7 @@
 #include "../Plugins/Online/OnlineSubsystem/Source/Public/Online.h"
 #include "../Plugins/Online/OnlineSubsystemUtils/Source/OnlineSubsystemUtils/Public/OnlineSubsystemUtils.h"
 #include "Kismet/GameplayStatics.h"
+#include "Engine/LocalPlayer.h"
 
 UShootingGameInstance::UShootingGameInstance(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
@@ -19,10 +20,6 @@ UShootingGameInstance::UShootingGameInstance(const FObjectInitializer& ObjectIni
 void UShootingGameInstance::Init()
 {
 	SaveGameInstance = Cast<UShootingSaveGame>(UGameplayStatics::CreateSaveGameObject(UShootingSaveGame::StaticClass()));
-	if (!SaveGameInstance)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Failed to init"));
-	}
 	LoadGameRecords();
 }
 
@@ -101,22 +98,15 @@ void UShootingGameInstance::LoadGameRecords()
 	UShootingSaveGame* SaveInstance = Cast<UShootingSaveGame>(UGameplayStatics::LoadGameFromSlot("ScoreRecords", 0));
 	if (SaveInstance)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Load successful"));
 		RankList = SaveInstance->RankList;
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Failed to load"));
 	}
 }
 void UShootingGameInstance::SaveGameRecords()
 {
 	if (!SaveGameInstance)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Failed to save"));
 		return;
 	}
-	UE_LOG(LogTemp, Warning, TEXT("Save successful"));
 	SaveGameInstance->RankList = RankList;
 	UGameplayStatics::SaveGameToSlot(SaveGameInstance, "ScoreRecords", 0);
 }
