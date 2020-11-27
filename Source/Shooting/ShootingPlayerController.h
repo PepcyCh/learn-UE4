@@ -17,6 +17,6 @@ class SHOOTING_API AShootingPlayerController : public APlayerController
 public:
 	void SetupInputComponent() override;
 
-	UFUNCTION(BlueprintCallable, Category = "Network|Test")
+	UFUNCTION(BlueprintCallable, Category = "Character")
 	void StartPlayerTimer();
 };

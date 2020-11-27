@@ -59,3 +59,14 @@ void AShootingPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>&
     DOREPLIFETIME(AShootingPlayerState, ShootingScore);
     DOREPLIFETIME(AShootingPlayerState, Id);
 }
+
+void AShootingPlayerState::SetWeaponName(const FString& Name)
+{
+    WeaponName = Name;
+}
+
+FString AShootingPlayerState::GetWeaponName() const
+{
+    return WeaponName;
+}
+

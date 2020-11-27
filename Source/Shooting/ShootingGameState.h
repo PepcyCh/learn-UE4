@@ -6,12 +6,9 @@
 #include "GameFramework/GameState.h"
 #include "ShootingGameState.generated.h"
 
-/**
- * 
- */
 UCLASS()
 class SHOOTING_API AShootingGameState : public AGameState
 {
 	GENERATED_BODY()
-	
+
 };

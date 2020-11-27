@@ -18,9 +18,11 @@ public class Shooting : ModuleRules
 			"OnlineSubsystemUtils",
 			"UMG",
 			"SlateCore",
-			"Slate"
+			"Slate",
 		});
 
 		DynamicallyLoadedModuleNames.Add("OnlineSubsystemNull");
+		
+		SetupModulePhysicsSupport(Target);
 	}
 }

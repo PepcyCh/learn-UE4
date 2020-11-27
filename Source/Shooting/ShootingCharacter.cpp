@@ -12,12 +12,13 @@
 #include "ShootingPlayerState.h"
 #include "ShootingPlayerController.h"
 #include "ShootingGameInstance.h"
+#include "WeaponActor.h"
+#include "GrenadeActor.h"
 #include "Blueprint/UserWidget.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/OutputDeviceDebug.h"
 #include "TimerManager.h"
 #include "Engine/World.h"
-#include "Engine/LocalPlayer.h"
 
 //////////////////////////////////////////////////////////////////////////
 // AShootingCharacter
@@ -55,6 +56,9 @@ AShootingCharacter::AShootingCharacter()
 
 	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
 	// are set in the derived blueprint asset named MyCharacter (to avoid direct content references in C++)}
+
+	GetCapsuleComponent()->OnComponentBeginOverlap.AddDynamic(this, &AShootingCharacter::OnOverlapBegin);
+	// GetCapsuleComponent()->OnComponentEndOverlap.AddDynamic(this, &AShootingCharacter::OnOverlapEnd);
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -72,9 +76,8 @@ void AShootingCharacter::SetupPlayerInputComponent(class UInputComponent* Player
 	// PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &AShootingCharacter::Shoot);
 	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &ACharacter::Jump);
 	PlayerInputComponent->BindAction("Jump", IE_Released, this, &ACharacter::StopJumping);
-	PlayerInputComponent->BindKey(EKeys::F, IE_Pressed, this, &AShootingCharacter::Shoot);
-	PlayerInputComponent->BindKey(EKeys::B, IE_Pressed, this, &AShootingCharacter::BlockBegin);
-	// PlayerInputComponent->BindKey(EKeys::B, IE_Released, this, &AShootingCharacter::BlockEnd);
+	PlayerInputComponent->BindAction("Fire", IE_Pressed, this, &AShootingCharacter::FireBegin);
+	PlayerInputComponent->BindAction("Block", IE_Pressed, this, &AShootingCharacter::BlockBegin);
 
 	PlayerInputComponent->BindAxis("MoveForward", this, &AShootingCharacter::MoveForward);
 	PlayerInputComponent->BindAxis("MoveRight", this, &AShootingCharacter::MoveRight);
@@ -103,12 +106,10 @@ void AShootingCharacter::OnResetVR()
 
 void AShootingCharacter::TouchStarted(ETouchIndex::Type FingerIndex, FVector Location)
 {
-	// Jump();
 }
 
 void AShootingCharacter::TouchStopped(ETouchIndex::Type FingerIndex, FVector Location)
-{
-	// StopJumping();
+{	
 }
 
 void AShootingCharacter::TurnAtRate(float Rate)
@@ -125,7 +126,7 @@ void AShootingCharacter::LookUpAtRate(float Rate)
 
 void AShootingCharacter::MoveForward(float Value)
 {
-	if ((Controller != NULL) && (Value != 0.0f))
+	if (Controller && Value != 0.0f)
 	{
 		// find out which way is forward
 		const FRotator Rotation = Controller->GetControlRotation();
@@ -139,7 +140,7 @@ void AShootingCharacter::MoveForward(float Value)
 
 void AShootingCharacter::MoveRight(float Value)
 {
-	if ( (Controller != NULL) && (Value != 0.0f) )
+	if (Controller && Value != 0.0f)
 	{
 		// find out which way is right
 		const FRotator Rotation = Controller->GetControlRotation();
@@ -152,70 +153,70 @@ void AShootingCharacter::MoveRight(float Value)
 	}
 }
 
-void AShootingCharacter::Shoot()
+UStaticMeshComponent* AShootingCharacter::GetGunMeshComponent() const
 {
-	if (bIsBlocking || bIsFiring)
+	TInlineComponentArray<UStaticMeshComponent*> CompoArray;
+	GetComponents(CompoArray);
+	for (auto Compo : CompoArray)
 	{
-		return;
+		if (Compo->GetFName() == FName("GunMesh"))
+		{
+			return Cast<UStaticMeshComponent>(Compo);
+		}
 	}
-	AShootingPlayerState* ShootingPlayerState = GetPlayerState<AShootingPlayerState>();
-	if (ShootingPlayerState == NULL)
+	return nullptr;
+}
+
+
+void AShootingCharacter::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,
+	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	if (OtherActor && (OtherActor != this) && OtherComp)
+	{
+		AWeaponActor* WeaponActor = Cast<AWeaponActor>(OtherActor);
+		if (WeaponActor)
+		{
+			// GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, TEXT("Overlap Weapon Actor"));
+			UStaticMeshComponent* WeaponMeshCompo = Cast<UStaticMeshComponent>(OtherComp);
+			if (WeaponMeshCompo && WeaponMeshCompo->IsVisible())
+			{
+				GetGunMeshComponent()->SetStaticMesh(WeaponMeshCompo->GetStaticMesh());
+				if (Weapon)
+				{
+					Weapon->Destroy();
+				}
+				Weapon = WeaponActor;
+				Cast<AShootingPlayerState>(GetPlayerState())->SetWeaponName(Weapon->GetWeaponName());
+				WeaponMeshCompo->SetVisibility(false);
+			}
+		}
+	}
+}
+
+// void AShootingCharacter::OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,
+// 	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
+// {
+// 	if (OtherActor && (OtherActor != this) && OtherComp)
+// 	{
+// 		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString("On Overlap Begin, Actor Name = ") + OtherActor->GetName());
+// 	}
+// }
+
+void AShootingCharacter::FireBegin()
+{
+	if (bIsBlocking || bIsFiring || Weapon == nullptr || !bInGame)
 	{
 		return;
 	}
 
 	bIsFiring = true;
-	GetWorldTimerManager().SetTimer(FireTimerHandle, this, &AShootingCharacter::ShootEnd, 1.0f);
-
-	const FVector Start = GetActorLocation() + FVector(10.0f, 20.0f, 50.0f);
+	GetWorldTimerManager().SetTimer(FireTimerHandle, this, &AShootingCharacter::FireEnd, 1.0f);
 	const FVector Direction = FollowCamera->GetForwardVector();
-	const float ShootRayLength = 10000.0f;
-	const FVector End = Start + Direction * ShootRayLength;
-	// UE_LOG(LogTemp, Warning, TEXT("Trace Ray, Start = %s, End = %s"), *Start.ToString(), *End.ToString());
-
-	// GetWorld()->DebugDrawTraceTag = FName("Bullet");
-	FCollisionQueryParams QueryParams(FName("Bullet"), true, this);
-	QueryParams.bReturnPhysicalMaterial = false;
-	QueryParams.bTraceComplex = true;
-	FHitResult Hit(ForceInit);
-	GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, QueryParams);
-	AActor* HitActor = Cast<AActor>(Hit.GetActor());
-	if (HitActor)
-	{
-		// UE_LOG(LogTemp, Warning, TEXT("Hit Actor Name = %s"), *HitActor->GetFName().ToString());
-		FVector HitLocation = Hit.Location;
-		if (HitParticle)
-		{
-			FTransform ParticleTrans(HitLocation);
-			UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), HitParticle, ParticleTrans);
-		}
-
-		if (bInGame && HitActor->GetFName() == FName("Target_BP"))
-		{
-			FVector TargetLocation = HitActor->GetActorLocation();
-			const float Diff = (TargetLocation - HitLocation).Size();
-			const float Radius = 80.0f;
-			const float RadiusInner = 30.0f;
-			uint32 Score = 10;
-			if (Diff <= RadiusInner)
-			{
-				Score = 10;
-			}
-			else if (Diff >= Radius)
-			{
-				Score = 0;
-			}
-			else
-			{
-				Score = (Radius - Diff) / (Radius - RadiusInner) * 10.0f;
-			}
-			// UE_LOG(LogTemp, Warning, TEXT("Diff = %f, Score = %d"), Diff, Score);
-			ShootingPlayerState->IncreaseScore(Score);
-		}
-	}
+	const FVector Start = GetActorLocation() + Direction * 25.0f + FVector(0.0f, 0.0f, 50.0f);
+	Weapon->Fire(this, Start, Direction);
 }
 
-void AShootingCharacter::ShootEnd()
+void AShootingCharacter::FireEnd()
 {
 	bIsFiring = false;
 	GetWorldTimerManager().ClearTimer(FireTimerHandle);
@@ -225,9 +226,16 @@ void AShootingCharacter::StartTimer()
 {
 	AShootingPlayerState* ShootingPlayerState = GetPlayerState<AShootingPlayerState>();
 	ShootingPlayerState->ResetScore();
-	const static float GAME_TIME = 30.0f;
-	GetWorldTimerManager().SetTimer(ShootTimerHandle, this, &AShootingCharacter::OnTimerEnd, GAME_TIME);
+	const static float GameTime = 60.0f;
+	GetWorldTimerManager().SetTimer(ShootTimerHandle, this, &AShootingCharacter::OnTimerEnd, GameTime);
 	bInGame = true;
+	GetGunMeshComponent()->SetStaticMesh(nullptr);
+	if (Weapon)
+	{
+		Weapon->Destroy();
+	}
+	Weapon = nullptr;
+	Cast<AShootingPlayerState>(GetPlayerState())->SetWeaponName("No Weapon");
 }
 
 void AShootingCharacter::OnTimerEnd()
@@ -241,7 +249,7 @@ void AShootingCharacter::OnTimerEnd()
 	AShootingPlayerController* PlayerController = Cast<AShootingPlayerController>(GetController());
 	if (!PauseMenu)
 	{
-		FStringClassReference PauseMenuRef(TEXT("/Game/ThirdPersonCPP/Blueprints/PauseMenuUI.PauseMenuUI_C"));
+		const FStringClassReference PauseMenuRef(TEXT("/Game/ThirdPersonCPP/Blueprints/UI/PauseMenuUI.PauseMenuUI_C"));
 		UClass* PauseMenuClass = PauseMenuRef.TryLoadClass<UUserWidget>();
 		if (!PauseMenuClass)
 		{
@@ -257,7 +265,7 @@ void AShootingCharacter::OnTimerEnd()
 	PauseMenu->AddToViewport();
 	FInputModeUIOnly InputMode;
 	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
-	InputMode.SetWidgetToFocus(PauseMenu->TakeWidget());
+	// InputMode.SetWidgetToFocus(PauseMenu->TakeWidget());
 	PlayerController->SetInputMode(InputMode);
 	PlayerController->bShowMouseCursor = true;
 }
@@ -268,39 +276,23 @@ int32 AShootingCharacter::GetTimeRemaining() const
 	{
 		return -1;
 	}
-	return (int32) GetWorldTimerManager().GetTimerRemaining(ShootTimerHandle);
+	return static_cast<int32>(GetWorldTimerManager().GetTimerRemaining(ShootTimerHandle));
 }
 
 void AShootingCharacter::BlockBegin()
 {
-	if (bIsBlocking || bIsFiring)
+	if (bIsBlocking || bIsFiring || !bInGame || !Weapon->CanUsedForBlocking())
 	{
 		return;
 	}
-	TInlineComponentArray<UMeshComponent*> CompoArray;
-	GetComponents(CompoArray);
-	for (auto Compo : CompoArray)
-	{
-		if (Compo->GetFName() == FName("GunMesh"))
-		{
-			Compo->SetRelativeRotation(FRotator(-26.968733f, 253.489838f, 64.647484f));
-		}
-	}
 	bIsBlocking = true;
+	GetGunMeshComponent()->SetRelativeRotation(FRotator(-26.968733f, 253.489838f, 64.647484f));
 	GetWorldTimerManager().SetTimer(BlockTimerHandle, this, &AShootingCharacter::BlockEnd, 2.5f);
 }
 
 void AShootingCharacter::BlockEnd()
 {
 	bIsBlocking = false;
-	TInlineComponentArray<UMeshComponent*> CompoArray;
-	GetComponents(CompoArray);
-	for (auto Compo : CompoArray)
-	{
-		if (Compo->GetFName() == FName("GunMesh"))
-		{
-			Compo->SetRelativeRotation(FRotator(32.799591f, 257.086487f, 155.704193f));
-		}
-	}
+	GetGunMeshComponent()->SetRelativeRotation(FRotator(32.799591f, 257.086487f, 155.704193f));
 	GetWorldTimerManager().ClearTimer(BlockTimerHandle);
 }

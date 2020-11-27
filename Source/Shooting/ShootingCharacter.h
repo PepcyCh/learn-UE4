@@ -3,6 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
+#include "WeaponActor.h"
 #include "GameFramework/Character.h"
 #include "ShootingCharacter.generated.h"
 
@@ -32,6 +34,13 @@ class AShootingCharacter : public ACharacter
 	UPROPERTY(VisibleAnywhere)
 	UUserWidget* PauseMenu = nullptr;
 
+protected:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	class AWeaponActor* Weapon = nullptr;
+
+	UFUNCTION()
+	UStaticMeshComponent* GetGunMeshComponent() const;
+
 public:
 	AShootingCharacter();
 
@@ -42,9 +51,6 @@ public:
 	/** Base look up/down rate, in deg/sec. Other scaling may affect final rate. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category=Camera)
 	float BaseLookUpRate;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
-	UParticleSystem* HitParticle;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
 	bool bIsBlocking = false;
@@ -91,18 +97,26 @@ public:
 	/** Returns FollowCamera subobject **/
 	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
 
-	UFUNCTION(BlueprintCallable, Category = "Network|Test")
-	void Shoot();
-	UFUNCTION(BlueprintCallable, Category = "Network|Test")
-	void ShootEnd();
+	UFUNCTION()
+	void OnOverlapBegin(class UPrimitiveComponent* OverlappedComp, class AActor* OtherActor, class UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+	// UFUNCTION()
+	// void OnOverlapEnd(class UPrimitiveComponent* OverlappedComp, class AActor* OtherActor, class UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
 
-	UFUNCTION(BlueprintCallable, Category = "Network|Test")
+	UFUNCTION(BlueprintCallable, Category = "Character")
+    void FireBegin();
+	UFUNCTION(BlueprintCallable, Category = "Character")
+	void FireEnd();
+
+	UFUNCTION(BlueprintCallable, Category = "Character")
 	void BlockBegin();
-	UFUNCTION(BlueprintCallable, Category = "Network|Test")
+	UFUNCTION(BlueprintCallable, Category = "Character")
 	void BlockEnd();
 
+	UFUNCTION()
 	void StartTimer();
+	UFUNCTION()
 	void OnTimerEnd();
+	UFUNCTION()
 	int32 GetTimeRemaining() const;
 };
 

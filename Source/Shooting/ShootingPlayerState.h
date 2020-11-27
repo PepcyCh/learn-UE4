@@ -13,6 +13,8 @@ class SHOOTING_API AShootingPlayerState : public APlayerState
 
 	UPROPERTY(VisibleAnywhere, Replicated)
 	uint32 ShootingScore = 0;
+	UPROPERTY(VisibleAnywhere)
+	FString WeaponName;
 
 	UFUNCTION(Server, Reliable, WithValidation)
 	void IncreaseScoreServer(uint32 delta = 1);
@@ -34,4 +36,7 @@ public:
 	void IncreaseScore(uint32 delta = 1);
 	void ResetScore();
 	uint32 GetShootingScore() const;
+
+	void SetWeaponName(const FString& Name);
+	FString GetWeaponName() const;
 };
