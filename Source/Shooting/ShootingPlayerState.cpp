@@ -3,70 +3,98 @@
 
 #include "ShootingPlayerState.h"
 
+
+
+#include "ShootingGameInstance.h"
+#include "ShootingGameState.h"
 #include "Net/UnrealNetwork.h"
 #include "Engine/World.h"
 
 AShootingPlayerState::AShootingPlayerState()
 {
     bReplicates = true;
+    bUseCustomPlayerNames = true;
+    UE_LOG(LogTemp, Log, TEXT("PlayerState ctor"));
 }
 
-void AShootingPlayerState::IncreaseScore(uint32 delta)
+void AShootingPlayerState::SetCustomPlayerName_Server_Implementation(const FString& Name)
 {
-    if (!GetWorld()->IsServer())
-    {
-        IncreaseScoreServer(delta);
-    }
-    else
-    {
-        ShootingScore += delta;
-    }
-}
-void AShootingPlayerState::IncreaseScoreServer_Implementation(uint32 delta)
-{
-    ShootingScore += delta;
-}
-bool AShootingPlayerState::IncreaseScoreServer_Validate(uint32 delta)
-{
-    return delta <= 10;
+    CustomPlayerName = Name;
 }
 
-void AShootingPlayerState::ResetScore()
+FString AShootingPlayerState::GetPlayerNameCustom() const
 {
-    if (!GetWorld()->IsServer())
-    {
-        ResetScoreServer();
-    }
-    else
-    {
-        ShootingScore = 0;
-    }
-}
-void AShootingPlayerState::ResetScoreServer_Implementation()
-{
-    ShootingScore = 0;
+    return CustomPlayerName;
 }
 
-uint32 AShootingPlayerState::GetShootingScore() const
+void AShootingPlayerState::IncreaseKillNumber_Server_Implementation()
 {
-    return ShootingScore;
+    ++KillNumber;
 }
+bool AShootingPlayerState::IncreaseKillNumber_Server_Validate()
+{
+    AShootingGameState* GameState = Cast<AShootingGameState>(GetWorld()->GetGameState());
+    return GameState && GameState->GetCurrentState() == EShootingState::InGame;
+}
+
+void AShootingPlayerState::ResetKillNumber_Server_Implementation()
+{
+    KillNumber = 0;
+}
+
+void AShootingPlayerState::IncreaseDeathNumber_Server_Implementation()
+{
+    ++DeathNumber;
+}
+bool AShootingPlayerState::IncreaseDeathNumber_Server_Validate()
+{
+    AShootingGameState* GameState = Cast<AShootingGameState>(GetWorld()->GetGameState());
+    return GameState && GameState->GetCurrentState() == EShootingState::InGame;
+}
+
+void AShootingPlayerState::ResetDeathNumber_Server_Implementation()
+{
+    DeathNumber = 0;
+}
+
+void AShootingPlayerState::InsertRecordToInstance_Client_Implementation()
+{
+    UShootingGameInstance* GameInstance = Cast<UShootingGameInstance>(GetGameInstance());
+    if (GameInstance)
+    {
+        GameInstance->InsertGameRecord(CustomPlayerName, KillNumber, DeathNumber);
+    }
+}
+
 
 void AShootingPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-    DOREPLIFETIME(AShootingPlayerState, ShootingScore);
-    DOREPLIFETIME(AShootingPlayerState, Id);
+    DOREPLIFETIME(AShootingPlayerState, CustomPlayerName);
+    DOREPLIFETIME(AShootingPlayerState, KillNumber);
+    DOREPLIFETIME(AShootingPlayerState, DeathNumber);
 }
 
-void AShootingPlayerState::SetWeaponName(const FString& Name)
+void AShootingPlayerState::CopyProperties(APlayerState* PlayerState)
 {
-    WeaponName = Name;
+    Super::CopyProperties(PlayerState);
+    AShootingPlayerState* NewPlayerState = Cast<AShootingPlayerState>(PlayerState);
+    if (NewPlayerState)
+    {
+        NewPlayerState->CustomPlayerName = CustomPlayerName;
+        NewPlayerState->KillNumber = KillNumber;
+        NewPlayerState->DeathNumber = DeathNumber;
+    }
 }
-
-FString AShootingPlayerState::GetWeaponName() const
+void AShootingPlayerState::OverrideWith(APlayerState* PlayerState)
 {
-    return WeaponName;
+    Super::CopyProperties(PlayerState);
+    AShootingPlayerState* OldPlayerState = Cast<AShootingPlayerState>(PlayerState);
+    if (OldPlayerState)
+    {
+        CustomPlayerName = OldPlayerState->CustomPlayerName;
+        KillNumber = OldPlayerState->KillNumber;
+        DeathNumber = OldPlayerState->DeathNumber;
+    }
 }
-

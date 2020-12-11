@@ -7,10 +7,12 @@
 #include "ShootingPlayerState.h"
 #include "SoundHelper.h"
 #include "Kismet/GameplayStatics.h"
+#include "GameFramework/DamageType.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
 
 void AGunWeaponActor::BeginPlay()
 {
+    Super::BeginPlay();
     if (SoundHelperClass)
     {
         SoundHelper = GetWorld()->SpawnActor<ASoundHelper>(SoundHelperClass, FVector(), FRotator());
@@ -49,6 +51,7 @@ void AGunWeaponActor::Fire(ACharacter* Character, const FVector& Start, const FV
                 {
                     SoundHelper->PlaySound("Head");
                 }
+                HitCharacter_Server(Character, Hit, 100);
                 break;
             case SurfaceType2: // Body
                 // GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Orange, "Hit Body");
@@ -56,6 +59,7 @@ void AGunWeaponActor::Fire(ACharacter* Character, const FVector& Start, const FV
                 {
                     SoundHelper->PlaySound("Body");
                 }
+                HitCharacter_Server(Character, Hit, 60);
                 break;
             case SurfaceType3: // Hand
                 // GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Orange, "Hit Hand");
@@ -63,6 +67,7 @@ void AGunWeaponActor::Fire(ACharacter* Character, const FVector& Start, const FV
                 {
                     SoundHelper->PlaySound("Hand");
                 }
+                HitCharacter_Server(Character, Hit, 20);
                 break;
             case SurfaceType4: // Arm
                 // GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Orange, "Hit Arm");
@@ -70,6 +75,7 @@ void AGunWeaponActor::Fire(ACharacter* Character, const FVector& Start, const FV
                 {
                     SoundHelper->PlaySound("Arm");
                 }
+                HitCharacter_Server(Character, Hit, 40);
                 break;
             case SurfaceType5: // Foot
                 // GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Orange, "Hit Foot");
@@ -77,6 +83,7 @@ void AGunWeaponActor::Fire(ACharacter* Character, const FVector& Start, const FV
                 {
                     SoundHelper->PlaySound("Foot");
                 }
+                HitCharacter_Server(Character, Hit, 20);
                 break;
             case SurfaceType6: // Thigh
                 // GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Orange, "Hit Thigh");
@@ -84,9 +91,10 @@ void AGunWeaponActor::Fire(ACharacter* Character, const FVector& Start, const FV
                 {
                     SoundHelper->PlaySound("Thigh");
                 }
+                HitCharacter_Server(Character, Hit, 40);
                 break;
             case SurfaceType7: // Target
-                HitTarget(Character, Hit);
+                // HitTarget(Character, Hit);
                 break;
             default:
                 ;
@@ -94,34 +102,48 @@ void AGunWeaponActor::Fire(ACharacter* Character, const FVector& Start, const FV
     }
 }
 
-void AGunWeaponActor::HitTarget(ACharacter* Character, const FHitResult& Hit) const
+// void AGunWeaponActor::HitTarget(ACharacter* Character, const FHitResult& Hit) const
+// {
+//     AShootingCharacter* ShootingCharacter = Cast<AShootingCharacter>(Character);
+//     if (ShootingCharacter == nullptr)
+//     {
+//         return;
+//     }
+//         
+//     const FVector TargetLocation = Hit.GetActor()->GetActorLocation();
+//     const float Diff = (TargetLocation - Hit.Location).Size();
+//     const float Radius = 80.0f;
+//     const float RadiusInner = 30.0f;
+//     uint32 Score;
+//     if (Diff <= RadiusInner)
+//     {
+//         Score = 10;
+//     }
+//     else if (Diff >= Radius)
+//     {
+//         Score = 0;
+//     }
+//     else
+//     {
+//         Score = (Radius - Diff) / (Radius - RadiusInner) * 10.0f;
+//     }
+//     
+//     AShootingPlayerState* ShootingPlayerState = ShootingCharacter->GetPlayerState<AShootingPlayerState>();
+//     ShootingPlayerState->IncreaseScore(Score);
+// }
+
+void AGunWeaponActor::HitCharacter_Server_Implementation(ACharacter* Character, const FHitResult& Hit, int32 Damage) const
 {
+    UE_LOG(LogTemp, Log, TEXT("GunHitChar, Damage = %d"), Damage);
     AShootingCharacter* ShootingCharacter = Cast<AShootingCharacter>(Character);
-    if (ShootingCharacter == nullptr)
+    AShootingCharacter* HitShootingCharacter = Cast<AShootingCharacter>(Hit.Actor);
+    if (ShootingCharacter == nullptr || HitShootingCharacter == nullptr)
     {
         return;
     }
-        
-    const FVector TargetLocation = Hit.GetActor()->GetActorLocation();
-    const float Diff = (TargetLocation - Hit.Location).Size();
-    const float Radius = 80.0f;
-    const float RadiusInner = 30.0f;
-    uint32 Score;
-    if (Diff <= RadiusInner)
-    {
-        Score = 10;
-    }
-    else if (Diff >= Radius)
-    {
-        Score = 0;
-    }
-    else
-    {
-        Score = (Radius - Diff) / (Radius - RadiusInner) * 10.0f;
-    }
-    
-    AShootingPlayerState* ShootingPlayerState = ShootingCharacter->GetPlayerState<AShootingPlayerState>();
-    ShootingPlayerState->IncreaseScore(Score);
+
+    UGameplayStatics::ApplyDamage(HitShootingCharacter, Damage, ShootingCharacter->GetController(),
+        ShootingCharacter, UDamageType::StaticClass());
 }
 
 void AGunWeaponActor::EndPlay(const EEndPlayReason::Type EndPlayReason)

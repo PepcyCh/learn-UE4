@@ -10,33 +10,46 @@ UCLASS()
 class SHOOTING_API AShootingPlayerState : public APlayerState
 {
 	GENERATED_BODY()
-
-	UPROPERTY(VisibleAnywhere, Replicated)
-	uint32 ShootingScore = 0;
-	UPROPERTY(VisibleAnywhere)
-	FString WeaponName;
-
-	UFUNCTION(Server, Reliable, WithValidation)
-	void IncreaseScoreServer(uint32 delta = 1);
-	void IncreaseScoreServer_Implementation(uint32 delta);
-	bool IncreaseScoreServer_Validate(uint32 delta);
-
-	UFUNCTION(Server, Reliable)
-	void ResetScoreServer();
-	void ResetScoreServer_Implementation();
-
+	
+	virtual FString GetPlayerNameCustom() const override;
+	
 public:
 	UPROPERTY(VisibleAnywhere, Replicated)
-	uint32 Id = 0;
+	FString CustomPlayerName;
+	UPROPERTY(VisibleAnywhere, Replicated)
+	int32 KillNumber = 0;
+	UPROPERTY(VisibleAnywhere, Replicated)
+	int32 DeathNumber = 0;
 
 	AShootingPlayerState();
 
-	void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
-	void IncreaseScore(uint32 delta = 1);
-	void ResetScore();
-	uint32 GetShootingScore() const;
+	virtual void CopyProperties(APlayerState* PlayerState) override;
+	virtual void OverrideWith(APlayerState* PlayerState) override;
 
-	void SetWeaponName(const FString& Name);
-	FString GetWeaponName() const;
+	UFUNCTION(Server, Reliable)
+    void SetCustomPlayerName_Server(const FString& Name);
+	void SetCustomPlayerName_Server_Implementation(const FString& Name);
+
+	int32 GetKillNumber() const { return KillNumber; }
+	UFUNCTION(Server, Reliable, WithValidation)
+	void IncreaseKillNumber_Server();
+	void IncreaseKillNumber_Server_Implementation();
+	bool IncreaseKillNumber_Server_Validate();
+	UFUNCTION(Server, Reliable)
+	void ResetKillNumber_Server();
+	void ResetKillNumber_Server_Implementation();
+
+	int32 GetDeathNumber() const { return DeathNumber; }
+	UFUNCTION(Server, Reliable, WithValidation)
+    void IncreaseDeathNumber_Server();
+	void IncreaseDeathNumber_Server_Implementation();
+	bool IncreaseDeathNumber_Server_Validate();
+	UFUNCTION(Server, Reliable)
+    void ResetDeathNumber_Server();
+	void ResetDeathNumber_Server_Implementation();
+
+	UFUNCTION(Client, Reliable)
+	void InsertRecordToInstance_Client();
 };

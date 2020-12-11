@@ -1,27 +1,26 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ShootingCharacter.h"
-#include "HeadMountedDisplayFunctionLibrary.h"
+
+#include "Animation/AnimMontage.h"
+#include "Blueprint/UserWidget.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/InputComponent.h"
+#include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/SpringArmComponent.h"
-
-#include "ShootingPlayerState.h"
-#include "ShootingPlayerController.h"
-#include "ShootingGameInstance.h"
-#include "WeaponActor.h"
-#include "GrenadeActor.h"
-#include "Blueprint/UserWidget.h"
+#include "GeneratedCodeHelpers.h"
+#include "HeadMountedDisplayFunctionLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/OutputDeviceDebug.h"
+#include "ShootingPlayerState.h"
+#include "ShootingPlayerController.h"
+#include "ShootingGameMode.h"
 #include "TimerManager.h"
-#include "Engine/World.h"
-
-//////////////////////////////////////////////////////////////////////////
-// AShootingCharacter
+#include "WeaponActor.h"
+#include "Misc/OutputDeviceNull.h"
 
 AShootingCharacter::AShootingCharacter()
 {
@@ -54,15 +53,21 @@ AShootingCharacter::AShootingCharacter()
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName); // Attach the camera to the end of the boom and let the boom adjust to match the controller orientation
 	FollowCamera->bUsePawnControlRotation = false; // Camera does not rotate relative to arm
 
-	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
-	// are set in the derived blueprint asset named MyCharacter (to avoid direct content references in C++)}
-
 	GetCapsuleComponent()->OnComponentBeginOverlap.AddDynamic(this, &AShootingCharacter::OnOverlapBegin);
 	// GetCapsuleComponent()->OnComponentEndOverlap.AddDynamic(this, &AShootingCharacter::OnOverlapEnd);
+
+	bReplicates = true;
 }
 
-//////////////////////////////////////////////////////////////////////////
-// Input
+void AShootingCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(AShootingCharacter, Health);
+	DOREPLIFETIME(AShootingCharacter, bIsDead);
+	DOREPLIFETIME(AShootingCharacter, bIsFiring);
+	DOREPLIFETIME(AShootingCharacter, bIsBlocking);
+}
 
 void AShootingCharacter::SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent)
 {
@@ -98,6 +103,10 @@ void AShootingCharacter::SetupPlayerInputComponent(class UInputComponent* Player
 	PlayerInputComponent->BindAction("ResetVR", IE_Pressed, this, &AShootingCharacter::OnResetVR);
 }
 
+void AShootingCharacter::Tick(float DeltaTime)
+{
+	UpdateHealthBar();
+}
 
 void AShootingCharacter::OnResetVR()
 {
@@ -166,6 +175,19 @@ UStaticMeshComponent* AShootingCharacter::GetGunMeshComponent() const
 	}
 	return nullptr;
 }
+UWidgetComponent* AShootingCharacter::GetFloatingBarComponent() const
+{
+	TInlineComponentArray<UWidgetComponent*> CompoArray;
+	GetComponents(CompoArray);
+	for (auto Compo : CompoArray)
+	{
+		if (Compo->GetFName() == FName("FloatingBar"))
+		{
+			return Cast<UWidgetComponent>(Compo);
+		}
+	}
+	return nullptr;
+}
 
 
 void AShootingCharacter::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,
@@ -186,7 +208,8 @@ void AShootingCharacter::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AAc
 					Weapon->Destroy();
 				}
 				Weapon = WeaponActor;
-				Cast<AShootingPlayerState>(GetPlayerState())->SetWeaponName(Weapon->GetWeaponName());
+				Weapon->SetOwnerController(GetController());
+				Weapon->SetOwner(GetController());
 				WeaponMeshCompo->SetVisibility(false);
 			}
 		}
@@ -202,15 +225,45 @@ void AShootingCharacter::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AAc
 // 	}
 // }
 
+void AShootingCharacter::ResetHealth_Server_Implementation()
+{
+	Health = 100;
+	bIsDead = false;
+}
+
+FString AShootingCharacter::GetWeaponName() const
+{
+	return Weapon ? Weapon->GetWeaponName() : "No Weapon";
+}
+
+
+void AShootingCharacter::StartGame()
+{
+	bInGame = true;
+	ResetHealth_Server();
+	
+	GetGunMeshComponent()->SetStaticMesh(nullptr);
+	if (Weapon)
+	{
+		Weapon->Destroy();
+	}
+	Weapon = nullptr;
+}
+
+void AShootingCharacter::EndGame()
+{
+	bInGame = false;
+}
+
 void AShootingCharacter::FireBegin()
 {
-	if (bIsBlocking || bIsFiring || Weapon == nullptr || !bInGame)
+	if (bIsBlocking || bIsFiring || Weapon == nullptr || !bInGame || Health <= 0)
 	{
 		return;
 	}
 
-	bIsFiring = true;
-	GetWorldTimerManager().SetTimer(FireTimerHandle, this, &AShootingCharacter::FireEnd, 1.0f);
+	Fire_Server();
+	GetWorldTimerManager().SetTimer(FireTimerHandle, this, &AShootingCharacter::FireEnd, 0.8f);
 	const FVector Direction = FollowCamera->GetForwardVector();
 	const FVector Start = GetActorLocation() + Direction * 25.0f + FVector(0.0f, 0.0f, 50.0f);
 	Weapon->Fire(this, Start, Direction);
@@ -218,81 +271,142 @@ void AShootingCharacter::FireBegin()
 
 void AShootingCharacter::FireEnd()
 {
-	bIsFiring = false;
-	GetWorldTimerManager().ClearTimer(FireTimerHandle);
-}
-
-void AShootingCharacter::StartTimer()
-{
-	AShootingPlayerState* ShootingPlayerState = GetPlayerState<AShootingPlayerState>();
-	ShootingPlayerState->ResetScore();
-	const static float GameTime = 60.0f;
-	GetWorldTimerManager().SetTimer(ShootTimerHandle, this, &AShootingCharacter::OnTimerEnd, GameTime);
-	bInGame = true;
-	GetGunMeshComponent()->SetStaticMesh(nullptr);
-	if (Weapon)
-	{
-		Weapon->Destroy();
-	}
-	Weapon = nullptr;
-	Cast<AShootingPlayerState>(GetPlayerState())->SetWeaponName("No Weapon");
-}
-
-void AShootingCharacter::OnTimerEnd()
-{
-	bInGame = false;
-	GetWorldTimerManager().ClearTimer(ShootTimerHandle);
-
-	AShootingPlayerState* ShootingPlayerState = GetPlayerState<AShootingPlayerState>();
-	Cast<UShootingGameInstance>(GetGameInstance())->SetPlayerScore(ShootingPlayerState->GetShootingScore());
-
-	AShootingPlayerController* PlayerController = Cast<AShootingPlayerController>(GetController());
-	if (!PauseMenu)
-	{
-		const FStringClassReference PauseMenuRef(TEXT("/Game/ThirdPersonCPP/Blueprints/UI/PauseMenuUI.PauseMenuUI_C"));
-		UClass* PauseMenuClass = PauseMenuRef.TryLoadClass<UUserWidget>();
-		if (!PauseMenuClass)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("Can't load widget"));
-			return;
-		}
-		PauseMenu = CreateWidget<UUserWidget>(PlayerController, PauseMenuClass);
-	}
-
-	FOutputDeviceDebug DebugDevice;
-	PauseMenu->CallFunctionByNameWithArguments(TEXT("SetValues"), DebugDevice, this, true);
-
-	PauseMenu->AddToViewport();
-	FInputModeUIOnly InputMode;
-	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
-	// InputMode.SetWidgetToFocus(PauseMenu->TakeWidget());
-	PlayerController->SetInputMode(InputMode);
-	PlayerController->bShowMouseCursor = true;
-}
-
-int32 AShootingCharacter::GetTimeRemaining() const
-{
-	if (!bInGame)
-	{
-		return -1;
-	}
-	return static_cast<int32>(GetWorldTimerManager().GetTimerRemaining(ShootTimerHandle));
+	FireEnd_Server();
 }
 
 void AShootingCharacter::BlockBegin()
 {
-	if (bIsBlocking || bIsFiring || !bInGame || !Weapon->CanUsedForBlocking())
+	if (bIsBlocking || bIsFiring || !bInGame || Weapon == nullptr || !Weapon->CanUsedForBlocking() || Health <= 0)
 	{
 		return;
 	}
-	bIsBlocking = true;
-	GetGunMeshComponent()->SetRelativeRotation(FRotator(-26.968733f, 253.489838f, 64.647484f));
+	Block_Server();
 	GetWorldTimerManager().SetTimer(BlockTimerHandle, this, &AShootingCharacter::BlockEnd, 2.5f);
 }
 
 void AShootingCharacter::BlockEnd()
 {
+	BlockEnd_Server();
+}
+
+float AShootingCharacter::TakeDamage(float DamageAmount, const FDamageEvent& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
+{
+	if (Health <= 0)
+	{
+		return 0.0f;
+	}
+	if (bIsDead || bIsBlocking)
+	{
+		DamageAmount = 0.0f;
+	}
+	if (Health - DamageAmount < 0)
+	{
+		DamageAmount = Health;
+	}
+	Health -= DamageAmount;
+	if (Health <= 0)
+	{
+		Health = 0;
+		OnDeath(Cast<AShootingCharacter>(EventInstigator->GetPawn()));		
+	}
+	return DamageAmount;
+}
+
+void AShootingCharacter::UpdateHealthBar()
+{
+	UWidgetComponent* HealthBar = GetFloatingBarComponent();
+	if (HealthBar)
+	{
+		UUserWidget* HealthBarWidget = HealthBar->GetUserWidgetObject();
+		if (HealthBarWidget)
+		{
+			const FString Func = FText::Format(FTextFormat::FromString("UpdateHealthBar {0}"), FMath::Max(0.0f, Health / 100.0f)).ToString();
+			FOutputDeviceNull OutputDevice;
+			HealthBarWidget->CallFunctionByNameWithArguments(*Func, OutputDevice, this, true);
+		}
+	}
+}
+
+void AShootingCharacter::OnDeath(AShootingCharacter* Killer)
+{
+	bIsDead = true;
+	if (Killer)
+	{
+		AShootingPlayerState* KillerPlayerState = Cast<AShootingPlayerState>(Killer->GetPlayerState());
+		if (KillerPlayerState)
+		{
+			KillerPlayerState->IncreaseKillNumber_Server();
+		}
+	}
+	AShootingPlayerState* ShootingPlayerState = Cast<AShootingPlayerState>(GetPlayerState());
+	if (ShootingPlayerState)
+	{
+		ShootingPlayerState->IncreaseDeathNumber_Server();
+	}
+
+	AShootingGameMode* ShootingGameMode = Cast<AShootingGameMode>(GetWorld()->GetAuthGameMode());
+	APlayerController* PlayerController = Cast<APlayerController>(GetController());
+	if (ShootingGameMode && PlayerController)
+	{
+		ShootingGameMode->RestartPlayerDelay(PlayerController, 5.0f);
+	}
+
+	PlayDeathMontage_Multicast();
+	GetWorldTimerManager().SetTimer(DyingTimerHandle, this, &AShootingCharacter::AfterDeath, 2.5f);
+}
+
+void AShootingCharacter::AfterDeath()
+{
+	// TODO - restart
+	AShootingPlayerController* ShootingPlayerController = Cast<AShootingPlayerController>(GetController());
+	if (ShootingPlayerController)
+	{
+		ShootingPlayerController->AddDyingUIToViewport_Client();
+	}
+	Destroy();
+}
+
+void AShootingCharacter::Fire_Server_Implementation()
+{
+	bIsFiring = true;
+	PlayFireMontage_Multicast();
+}
+void AShootingCharacter::FireEnd_Server_Implementation()
+{
+	bIsFiring = false;
+}
+
+void AShootingCharacter::Block_Server_Implementation()
+{
+	bIsBlocking = true;
+	PlayBlockMontage_Multicast();
+}
+void AShootingCharacter::BlockEnd_Server_Implementation()
+{
 	bIsBlocking = false;
 	GetGunMeshComponent()->SetRelativeRotation(FRotator(32.799591f, 257.086487f, 155.704193f));
-	GetWorldTimerManager().ClearTimer(BlockTimerHandle);
 }
+
+void AShootingCharacter::PlayFireMontage_Multicast_Implementation()
+{
+	if (FireMontage)
+	{
+		PlayAnimMontage(FireMontage);
+	}
+}
+void AShootingCharacter::PlayBlockMontage_Multicast_Implementation()
+{
+	GetGunMeshComponent()->SetRelativeRotation(FRotator(-26.968733f, 253.489838f, 64.647484f));
+	if (BlockMontage)
+	{
+		PlayAnimMontage(BlockMontage);
+	}
+}
+void AShootingCharacter::PlayDeathMontage_Multicast_Implementation()
+{
+	if (DeathMontage)
+	{
+		PlayAnimMontage(DeathMontage);
+	}
+}
+

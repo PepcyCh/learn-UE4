@@ -4,14 +4,20 @@
 #include "GrenadeActor.h"
 
 #include "ExplosionActor.h"
+#include "ShootingCharacter.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
 #include "Components/StaticMeshComponent.h"
+#include "GameFramework/DamageType.h"
+#include "Kismet/GameplayStatics.h"
 
 // Sets default values
 AGrenadeActor::AGrenadeActor()
 {
  	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
+
+	SetRemoteRoleForBackwardsCompat(ROLE_SimulatedProxy);
+	bReplicates = true;
 
 	GrenadeMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("GrenadeMesh"));
 	RootComponent = GrenadeMesh;
@@ -43,17 +49,17 @@ void AGrenadeActor::Tick(float DeltaTime)
 	const static float ExplosionSpeed = 120.0f;
 	if (Speed <= ExplosionSpeed)
 	{
-		EmitExplosion();
+		EmitExplosion_Server();
 	}
 }
 
-void AGrenadeActor::EmitExplosion()
+void AGrenadeActor::EmitExplosion_Server_Implementation()
 {
 	if (Explosion)
 	{
 		GetWorld()->SpawnActor<AExplosionActor>(Explosion, GetActorLocation(), FRotator());
 	}
-	GetWorld()->DestroyActor(this);
+	Destroy();
 }
 
 
@@ -72,7 +78,8 @@ void AGrenadeActor::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
 				case SurfaceType4: // Arm
 				case SurfaceType5: // Foot
 				case SurfaceType6: // Thigh
-					EmitExplosion();
+					HitCharacter_Server(OtherActor);
+					EmitExplosion_Server();
 					break;
 				default:
 					const float Friction = Hit.PhysMaterial->Friction;
@@ -80,5 +87,25 @@ void AGrenadeActor::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
 			}			
 		}
 	}
+}
+
+void AGrenadeActor::SetOwnerController(AController* Controller)
+{
+	if (Controller)
+	{
+		OwnerController = Controller;
+	}
+}
+
+
+void AGrenadeActor::HitCharacter_Server_Implementation(AActor* OtherActor)
+{
+	AShootingCharacter* HitShootingCharacter = Cast<AShootingCharacter>(OtherActor);
+	if (HitShootingCharacter == nullptr)
+	{
+		return;
+	}
+
+	UGameplayStatics::ApplyDamage(HitShootingCharacter, 100, OwnerController, nullptr, UDamageType::StaticClass());
 }
 

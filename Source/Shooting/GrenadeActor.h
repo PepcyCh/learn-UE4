@@ -23,18 +23,28 @@ protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
+	UPROPERTY()
+	AController* OwnerController;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	UStaticMeshComponent* GrenadeMesh;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TSubclassOf<class AExplosionActor> Explosion;
 
-	UFUNCTION()
-    void EmitExplosion();
+	UFUNCTION(Server, Reliable)
+    void EmitExplosion_Server();
+	void EmitExplosion_Server_Implementation();
+
+	UFUNCTION(Server, Reliable)
+	void HitCharacter_Server(AActor* OtherActor);
+	void HitCharacter_Server_Implementation(AActor* OtherActor);
 
 public:	
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
+
+	void SetOwnerController(AController* Controller);
 
 	UFUNCTION()
 	void OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,

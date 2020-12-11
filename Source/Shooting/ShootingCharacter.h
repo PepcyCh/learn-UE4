@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 
 #include "WeaponActor.h"
+#include "Components/WidgetComponent.h"
 #include "GameFramework/Character.h"
 #include "ShootingCharacter.generated.h"
 
@@ -21,28 +22,60 @@ class AShootingCharacter : public ACharacter
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	class UCameraComponent* FollowCamera;
 
-	UPROPERTY(VisibleAnywhere)
-	bool bInGame = false;
-
-	UPROPERTY(VisibleAnywhere)
-	FTimerHandle ShootTimerHandle;
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY()
 	FTimerHandle BlockTimerHandle;
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY()
 	FTimerHandle FireTimerHandle;
-
-	UPROPERTY(VisibleAnywhere)
-	UUserWidget* PauseMenu = nullptr;
+	UPROPERTY()
+	FTimerHandle DyingTimerHandle;
 
 protected:
+	UPROPERTY(VisibleAnywhere, Replicated)
+	int Health;
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	class AWeaponActor* Weapon = nullptr;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	class UAnimMontage* FireMontage = nullptr;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    class UAnimMontage* BlockMontage = nullptr;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	class UAnimMontage* DeathMontage = nullptr;
+
 	UFUNCTION()
 	UStaticMeshComponent* GetGunMeshComponent() const;
+	UFUNCTION()
+	UWidgetComponent* GetFloatingBarComponent() const;
+
+	void UpdateHealthBar();
+
+	UFUNCTION(NetMulticast, Reliable)
+    void PlayFireMontage_Multicast();
+	UFUNCTION(NetMulticast, Reliable)
+    void PlayBlockMontage_Multicast();
+	UFUNCTION(NetMulticast, Reliable)
+	void PlayDeathMontage_Multicast();
+
+	UFUNCTION(Server, Reliable)
+	void Fire_Server();
+	void Fire_Server_Implementation();
+	UFUNCTION(Server, Reliable)
+	void FireEnd_Server();
+	void FireEnd_Server_Implementation();
+	UFUNCTION(Server, Reliable)
+	void Block_Server();
+	void Block_Server_Implementation();
+	UFUNCTION(Server, Reliable)
+    void BlockEnd_Server();
+	void BlockEnd_Server_Implementation();
 
 public:
 	AShootingCharacter();
+
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+	virtual void Tick(float DeltaTime) override;
 
 	/** Base turn rate, in deg/sec. Other scaling may affect final turn rate. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category=Camera)
@@ -52,10 +85,14 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category=Camera)
 	float BaseLookUpRate;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
+	UPROPERTY(VisibleAnywhere, Replicated, BlueprintReadOnly)
 	bool bIsBlocking = false;
-	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
+	UPROPERTY(VisibleAnywhere, Replicated, BlueprintReadOnly)
 	bool bIsFiring = false;
+	UPROPERTY(VisibleAnywhere)
+	bool bInGame = false;
+	UPROPERTY(VisibleAnywhere, Replicated, BlueprintReadOnly)
+	bool bIsDead = false;
 
 protected:
 
@@ -86,7 +123,6 @@ protected:
 	/** Handler for when a touch input stops. */
 	void TouchStopped(ETouchIndex::Type FingerIndex, FVector Location);
 
-protected:
 	// APawn interface
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 	// End of APawn interface
@@ -96,6 +132,16 @@ public:
 	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
 	/** Returns FollowCamera subobject **/
 	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
+
+	UFUNCTION(Server, Reliable)
+	void ResetHealth_Server();
+	void ResetHealth_Server_Implementation();
+	int32 GetHealth() const { return Health; }
+
+	FString GetWeaponName() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Character")
+	bool GetIsDead() const { return bIsDead; }
 
 	UFUNCTION()
 	void OnOverlapBegin(class UPrimitiveComponent* OverlappedComp, class AActor* OtherActor, class UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
@@ -112,11 +158,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Character")
 	void BlockEnd();
 
+	virtual float TakeDamage(float DamageAmount, const struct FDamageEvent& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
+	void OnDeath(AShootingCharacter* Killer);
 	UFUNCTION()
-	void StartTimer();
-	UFUNCTION()
-	void OnTimerEnd();
-	UFUNCTION()
-	int32 GetTimeRemaining() const;
+	void AfterDeath();
+
+	void StartGame();
+	void EndGame();
 };
 

@@ -21,8 +21,11 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TSubclassOf<class ASoundHelper> SoundHelperClass;
 
-    UFUNCTION()
     void HitTarget(ACharacter* Character, const FHitResult& Hit) const;
+
+    UFUNCTION(Server, Reliable)
+    void HitCharacter_Server(ACharacter* Character, const FHitResult& Hit, int32 Damage) const;
+    void HitCharacter_Server_Implementation(ACharacter* Character, const FHitResult& Hit, int32 Damage) const;
 
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 

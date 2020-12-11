@@ -11,10 +11,12 @@ struct FPlayerScorePair
 {
 	GENERATED_BODY()
 
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY()
 	FString Name;
-	UPROPERTY(VisibleAnywhere)
-	uint32 Score;
+	UPROPERTY()
+	int32 KilledCount;
+	UPROPERTY()
+	int32 DeathCount;
 };
 
 UCLASS()
@@ -23,6 +25,6 @@ class SHOOTING_API UShootingSaveGame : public USaveGame
 	GENERATED_BODY()
 	
 public:
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY()
 	TArray<FPlayerScorePair> RankList;
 };

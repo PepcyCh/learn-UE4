@@ -3,8 +3,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
 #include "Engine/GameInstance.h"
-#include "../Plugins/Online/OnlineSubsystem/Source/Public/Interfaces/OnlineSessionInterface.h"
+#include "Interfaces/OnlineSessionInterface.h"
 #include "Delegates/IDelegateInstance.h"
 #include "ShootingSaveGame.h"
 #include "ShootingGameInstance.generated.h"
@@ -28,48 +29,61 @@ class SHOOTING_API UShootingGameInstance : public UGameInstance
 	UPROPERTY(VisibleAnywhere)
 	UShootingSaveGame* SaveGameInstance = nullptr;
 
+	UPROPERTY()
+	int32 OnlineGamePlayerNumber = 0;
+	UPROPERTY()
+	int32 OnlineGamePlayerLimit = 0;
+
 public:
 
 	UShootingGameInstance(const FObjectInitializer& ObjectInitializer);
 
-	void Init() override;
+	virtual void Init() override;
 
-	UFUNCTION(BlueprintCallable, Category = "Network|Test")
+	UFUNCTION(BlueprintCallable, Category = "Player")
 	void SetPlayerName(FString Name);
-	UFUNCTION(BlueprintCallable, Category = "Network|Test")
+	UFUNCTION(BlueprintCallable, Category = "Player")
 	FString GetPlayerName() const;
 
-	UFUNCTION(BlueprintCallable, Category = "Network|Test")
+	UFUNCTION(BlueprintCallable, Category = "Player")
 	void SetPlayerScore(int32 Score);
-	UFUNCTION(BlueprintCallable, Category = "Network|Test")
+	UFUNCTION(BlueprintCallable, Category = "Player")
 	int32 GetPlayerScore() const;
 
-	UFUNCTION(BlueprintCallable, Category = "Network|Test")
-	void InsertPlayerScorePair(FString RecordedPlayerName);
-	UFUNCTION(BlueprintCallable, Category = "Network|Test")
-	FString GetRankListNameStr() const;
-	UFUNCTION(BlueprintCallable, Category = "Network|Test")
-	FString GetRankListScoreStr() const;
+	// UFUNCTION(BlueprintCallable, Category = "RankList")
+	// void InsertPlayerScorePair(FString RecordedPlayerName);
+	// UFUNCTION(BlueprintCallable, Category = "RankList")
+	// FString GetRankListNameStr() const;
+	// UFUNCTION(BlueprintCallable, Category = "RankList")
+	// FString GetRankListScoreStr() const;
+	void InsertGameRecord(const FString& Name, int32 KilledCount, int32 DeathCount);
 
 	void LoadGameRecords();
-	UFUNCTION(BlueprintCallable, Category = "Network|Test")
+	UFUNCTION(BlueprintCallable, Category = "SaveGame")
 	void SaveGameRecords();
 
 	bool HostSession(TSharedPtr<const FUniqueNetId> UserId, FName SessionName, bool bIsLAN, bool bIsPresence, int32 MaxNumPlayers);
 	void FindSessions(TSharedPtr<const FUniqueNetId> UserId, bool bIsLAN, bool bIsPresence);
-	bool JoinCertainSession(TSharedPtr<const FUniqueNetId> UserId, FName SessionName, const FOnlineSessionSearchResult& SearchResult);
+	virtual bool JoinSession(ULocalPlayer* LocalPlayer, const FOnlineSessionSearchResult& SearchResult) override;
 
 	UFUNCTION(BlueprintCallable, Category = "Network|Test")
-	void StartOnlineGame(bool bIsLan, bool bIsPresence, int32 MaxNumPlayers);
+	void HostOnlineGame(bool bIsLan, bool bIsPresence, int32 MaxNumPlayers);
 
+	UFUNCTION(BlueprintCallable, Category = "Network|Test")
+	void StartOnlineGame();
+	
 	UFUNCTION(BlueprintCallable, Category = "Network|Test")
 	void FindOnlineGames(bool bIsLan, bool bIsPresence);
-
-	UFUNCTION(BlueprintCallable, Category = "Network|Test")
-	void JoinOnlineGame();
-
+	
+	// UFUNCTION(BlueprintCallable, Category = "Network|Test")
+	// void JoinOnlineGame();
+    void JoinOnlineGame(const FOnlineSessionSearchResult& SearchResult);
+	
 	UFUNCTION(BlueprintCallable, Category = "Network|Test")
 	void DestroySessionAndLeaveGame();
+
+	int32 GetOnlineGamePlayerNumber() const { return OnlineGamePlayerNumber; }
+	int32 GetOnlineGamePlayerLimit() const { return OnlineGamePlayerLimit; }
 
 private:
 	void OnCreateSessionComplete(FName SessionName, bool bWasSuccessful);
@@ -78,21 +92,18 @@ private:
 	void OnJoinSessionComplete(FName SessionName, EOnJoinSessionCompleteResult::Type Result);
 	void OnDestroySessionComplete(FName SessionName, bool bWasSuccessful);
 
-private:
 	FOnCreateSessionCompleteDelegate OnCreateSessionCompleteDelegate;
 	FOnStartSessionCompleteDelegate OnStartSessionCompleteDelegate;
 	FOnFindSessionsCompleteDelegate OnFindSessionsCompleteDelegate;
 	FOnJoinSessionCompleteDelegate OnJoinSessionCompleteDelegate;
 	FOnDestroySessionCompleteDelegate OnDestroySessionCompleteDelegate;
-
+	
 	FDelegateHandle OnCreateSessionCompleteDelegateHandle;
 	FDelegateHandle OnStartSessionCompleteDelegateHandle;
 	FDelegateHandle OnFindSessionsCompleteDelegateHandle;
 	FDelegateHandle OnJoinSessionCompleteDelegateHandle;
 	FDelegateHandle OnDestroySessionCompleteDelegateHandle;
-
-	// IOnlineSubsystem* OnlineSub;
-	// TSharedPtr<const FUniqueNetId> UserId;
+	
 	TSharedPtr<FOnlineSessionSearch> SessionSearch;
 	TSharedPtr<FOnlineSessionSettings> SessionSettings;
 };

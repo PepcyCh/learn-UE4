@@ -17,6 +17,9 @@ protected:
 
 public:
 	virtual void Fire(ACharacter* Character, const FVector& Start, const FVector& Direction) const override;
+	UFUNCTION(Server, Reliable)
+	void Fire_Server(ACharacter* Character, const FVector& Start, const FVector& Direction) const;
+	void Fire_Server_Implementation(ACharacter* Character, const FVector& Start, const FVector& Direction) const;
 
-	virtual bool CanUsedForBlocking() const override { return true; }
+	virtual bool CanUsedForBlocking() const override { return false; }
 };

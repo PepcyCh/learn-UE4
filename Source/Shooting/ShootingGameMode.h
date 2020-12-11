@@ -13,23 +13,37 @@ class AShootingGameMode : public AGameMode
 {
 	GENERATED_BODY()
 
-	UPROPERTY(VisibleAnywhere)
-	uint32 PlayerCount = 0;
-
-	UPROPERTY()
-	AActor* Target = nullptr;
-	UPROPERTY()
-	int32 TargetMoveDirection = 1;
-
+	UPROPERTY();
+	int32 SpawnedPlayerCount = 0;
+	UPROPERTY();
+	int32 LoginPlayerCount = 0;
+	
 	UPROPERTY()
 	float AccumulatedTime = 0.0f;
+	// UPROPERTY()
+	// FTimerHandle StartTimerHandle;
+	UPROPERTY()
+	FTimerHandle GameTimerHandle;
+	UPROPERTY()
+	FTimerHandle RestartTimerHandle;
 
-	UFUNCTION()
+	UPROPERTY()
+	FString CurrentMapName = "";
+
+	FString GetCurrentMapName();
+
 	void SpawnRandomWeapon() const;
 
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float GameTime = 90.0f;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TArray<TSubclassOf<AWeaponActor>> Weapons;
+
+	virtual void BeginPlay() override;
+
+	virtual AActor* ChoosePlayerStart_Implementation(AController* Controller) override;
 
 public:
 	AShootingGameMode();
@@ -39,6 +53,12 @@ public:
 	virtual void RestartPlayer(AController* NewPlayer) override;
 
 	virtual void Tick(float DeltaSeconds) override;
-};
 
+	void StartGameTimer();
+	UFUNCTION()
+	void OnGameEnd() const;
+
+	void RestartPlayerDelay(APlayerController* NewPlayer, float DelayTime);
+	
+};
 

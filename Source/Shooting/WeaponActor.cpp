@@ -3,16 +3,31 @@
 
 #include "WeaponActor.h"
 
+#include "Components/StaticMeshComponent.h"
+
 AWeaponActor::AWeaponActor()
 {
  	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
+
+	SetRemoteRoleForBackwardsCompat(ROLE_SimulatedProxy);
+	bReplicates = true;
+	
 	StaticMeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("WeaponMesh"));
 	RootComponent = StaticMeshComponent;
 
 	StaticMeshComponent->SetGenerateOverlapEvents(true);
 	StaticMeshComponent->SetCollisionProfileName("OverlapAll");
 }
+
+void AWeaponActor::SetOwnerController(AController* Controller)
+{
+	if (Controller)
+	{
+		OwnerController = Controller;
+	}
+}
+
 
 void AWeaponActor::BeginPlay()
 {

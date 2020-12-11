@@ -2,16 +2,19 @@
 
 
 #include "ShootingGameInstance.h"
-#include "GameFramework/PlayerController.h"
-#include "../Plugins/Online/OnlineSubsystem/Source/Public/Online.h"
-#include "../Plugins/Online/OnlineSubsystemUtils/Source/OnlineSubsystemUtils/Public/OnlineSubsystemUtils.h"
+
+#include "ShootingPlayerController.h"
+#include "Online.h"
+#include "OnlineSubsystemUtils.h"
+#include "ShootingCharacter.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/LocalPlayer.h"
+#include "GameFramework/GameModeBase.h"
 
 UShootingGameInstance::UShootingGameInstance(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
-    OnCreateSessionCompleteDelegate = FOnCreateSessionCompleteDelegate::CreateUObject(this, &UShootingGameInstance::OnCreateSessionComplete);
-    OnStartSessionCompleteDelegate = FOnStartSessionCompleteDelegate::CreateUObject(this, &UShootingGameInstance::OnStartSessionComplete);
+	OnCreateSessionCompleteDelegate = FOnCreateSessionCompleteDelegate::CreateUObject(this, &UShootingGameInstance::OnCreateSessionComplete);
+	OnStartSessionCompleteDelegate = FOnStartSessionCompleteDelegate::CreateUObject(this, &UShootingGameInstance::OnStartSessionComplete);
 	OnFindSessionsCompleteDelegate = FOnFindSessionsCompleteDelegate::CreateUObject(this, &UShootingGameInstance::OnFindSessionsComplete);
 	OnJoinSessionCompleteDelegate = FOnJoinSessionCompleteDelegate::CreateUObject(this, &UShootingGameInstance::OnJoinSessionComplete);
 	OnDestroySessionCompleteDelegate = FOnDestroySessionCompleteDelegate::CreateUObject(this, &UShootingGameInstance::OnDestroySessionComplete);
@@ -41,56 +44,15 @@ int32 UShootingGameInstance::GetPlayerScore() const
 	return PlayerScore;
 }
 
-void UShootingGameInstance::InsertPlayerScorePair(FString RecordedPlayerName)
+void UShootingGameInstance::InsertGameRecord(const FString& Name, int32 KilledCount, int32 DeathCount)
 {
-	const static int32 MAX_RECORD = 10;
-	if (RankList.Num() >= MAX_RECORD && PlayerScore < RankList[MAX_RECORD - 1].Score)
-	{
-		return;
-	}
-
-	FPlayerScorePair NewRecord { RecordedPlayerName, PlayerScore };
-	int32 Rank = RankList.Num();
-	for (int32 i = 0; i < RankList.Num(); i++)
-	{
-		if (NewRecord.Score > RankList[i].Score)
-		{
-			Rank = i;
-			break;
-		}
-	}
-	RankList.Add(FPlayerScorePair{ RecordedPlayerName, PlayerScore });
-	if (Rank == RankList.Num())
-	{
-		return;
-	}
-	for (int32 i = RankList.Num() - 1; i > Rank; i--)
+	const FPlayerScorePair Item { Name, KilledCount, DeathCount };
+	RankList.Add(Item);
+	for (int32 i = RankList.Num() - 1; i > 0; i--)
 	{
 		RankList[i] = RankList[i - 1];
 	}
-	RankList[Rank] = NewRecord;
-	if (RankList.Num() > MAX_RECORD)
-	{
-		RankList.Pop();
-	}
-}
-FString UShootingGameInstance::GetRankListNameStr() const
-{
-	FString Res;
-	for (FPlayerScorePair Pair : RankList)
-	{
-		Res += Pair.Name + "\n";
-	}
-	return Res;
-}
-FString UShootingGameInstance::GetRankListScoreStr() const
-{
-	FString Res;
-	for (FPlayerScorePair Pair : RankList)
-	{
-		Res += FString::FromInt(Pair.Score) + "\n";
-	}
-	return Res;
+	RankList[0] = Item;
 }
 
 void UShootingGameInstance::LoadGameRecords()
@@ -113,113 +75,131 @@ void UShootingGameInstance::SaveGameRecords()
 
 bool UShootingGameInstance::HostSession(TSharedPtr<const FUniqueNetId> UserId, FName SessionName, bool bIsLAN, bool bIsPresence, int32 MaxNumPlayers)
 {
-	IOnlineSubsystem* OnlineSub = IOnlineSubsystem::Get();
-	if (!OnlineSub)
+	IOnlineSubsystem* const OnlineSub = Online::GetSubsystem(GetWorld());
+	if (OnlineSub)
 	{
-		return false;
+		IOnlineSessionPtr Sessions = OnlineSub->GetSessionInterface();
+		if (Sessions.IsValid() && UserId.IsValid())
+		{
+			SessionSettings = MakeShareable(new FOnlineSessionSettings());
+			SessionSettings->bIsLANMatch = bIsLAN;
+			SessionSettings->bUsesPresence = bIsPresence;
+			SessionSettings->NumPublicConnections = MaxNumPlayers;
+			SessionSettings->NumPrivateConnections = 0;
+			SessionSettings->bAllowInvites = true;
+			SessionSettings->bAllowJoinInProgress = true;
+			SessionSettings->bShouldAdvertise = true;
+			SessionSettings->bAllowJoinViaPresence = true;
+			SessionSettings->bAllowJoinViaPresenceFriendsOnly = false;
+			SessionSettings->Set(SETTING_MAPNAME, FString("MainMenuMap"), EOnlineDataAdvertisementType::ViaOnlineService);
+
+			OnCreateSessionCompleteDelegateHandle = Sessions->AddOnCreateSessionCompleteDelegate_Handle(OnCreateSessionCompleteDelegate);
+			return Sessions->CreateSession(*UserId, SessionName, *SessionSettings);
+		}
+		else
+		{
+			OnCreateSessionComplete(SessionName, false);
+		}
 	}
 
-	IOnlineSessionPtr Sessions = OnlineSub->GetSessionInterface();
-	if (!Sessions.IsValid() || !UserId.IsValid())
-	{
-		return false;
-	}
-
-	SessionSettings = MakeShareable(new FOnlineSessionSettings());
-	SessionSettings->bIsLANMatch = true;
-	SessionSettings->bUsesPresence = bIsPresence;
-	SessionSettings->NumPublicConnections = MaxNumPlayers;
-	SessionSettings->NumPrivateConnections = 0;
-	SessionSettings->bAllowInvites = true;
-	SessionSettings->bAllowJoinInProgress = true;
-	SessionSettings->bShouldAdvertise = true;
-	SessionSettings->bAllowJoinViaPresence = true;
-	SessionSettings->bAllowJoinViaPresenceFriendsOnly = false;
-	SessionSettings->Set(SETTING_MAPNAME, FString("ThirdPersonExampleMap"), EOnlineDataAdvertisementType::ViaOnlineService);
-
-	OnCreateSessionCompleteDelegateHandle = Sessions->AddOnCreateSessionCompleteDelegate_Handle(OnCreateSessionCompleteDelegate);
-	return Sessions->CreateSession(*UserId, SessionName, *SessionSettings);
+	return false;
 }
 
 void UShootingGameInstance::FindSessions(TSharedPtr<const FUniqueNetId> UserId, bool bIsLAN, bool bIsPresence)
 {
-	IOnlineSubsystem* OnlineSub = IOnlineSubsystem::Get();
+	IOnlineSubsystem* OnlineSub = Online::GetSubsystem(GetWorld());
+	if (OnlineSub)
+	{
+		IOnlineSessionPtr Sessions = OnlineSub->GetSessionInterface();
+		if (Sessions.IsValid() && UserId.IsValid())
+		{
+			SessionSearch = MakeShareable(new FOnlineSessionSearch());
+			SessionSearch->bIsLanQuery = bIsLAN;
+			SessionSearch->QuerySettings.Set(SEARCH_PRESENCE, bIsPresence, EOnlineComparisonOp::Equals);
 
-	if (!OnlineSub)
+			const TSharedRef<FOnlineSessionSearch> SearchSettingsRef = SessionSearch.ToSharedRef();
+			OnFindSessionsCompleteDelegateHandle = Sessions->AddOnFindSessionsCompleteDelegate_Handle(OnFindSessionsCompleteDelegate);
+			Sessions->FindSessions(*UserId, SearchSettingsRef);
+		}
+	}
+	else
 	{
 		OnFindSessionsComplete(false);
 	}
-
-	IOnlineSessionPtr Sessions = OnlineSub->GetSessionInterface();
-	if (!Sessions.IsValid() || !UserId.IsValid())
-	{
-		return;
-	}
-
-	SessionSearch = MakeShareable(new FOnlineSessionSearch());
-	SessionSearch->bIsLanQuery = true;
-	SessionSearch->MaxSearchResults = 20;
-	SessionSearch->PingBucketSize = 50;
-	if (bIsPresence)
-	{
-		SessionSearch->QuerySettings.Set(SEARCH_PRESENCE, bIsPresence, EOnlineComparisonOp::Equals);
-	}
-
-
-	OnFindSessionsCompleteDelegateHandle = Sessions->AddOnFindSessionsCompleteDelegate_Handle(OnFindSessionsCompleteDelegate);
-
-	TSharedRef<FOnlineSessionSearch> SearchSettingsRef = SessionSearch.ToSharedRef();
-	Sessions->FindSessions(*UserId, SearchSettingsRef);
 }
 
-bool UShootingGameInstance::JoinCertainSession(TSharedPtr<const FUniqueNetId> UserId, FName SessionName, const FOnlineSessionSearchResult& SearchResult)
+bool UShootingGameInstance::JoinSession(ULocalPlayer* LocalPlayer, const FOnlineSessionSearchResult& SearchResult)
 {
-	IOnlineSubsystem* OnlineSub = IOnlineSubsystem::Get();
-	if (!OnlineSub)
+	IOnlineSubsystem* OnlineSub = Online::GetSubsystem(GetWorld());
+	if (OnlineSub)
 	{
-		return false;
+		IOnlineSessionPtr Sessions = OnlineSub->GetSessionInterface();
+		if (Sessions.IsValid() && LocalPlayer->GetPreferredUniqueNetId().GetUniqueNetId().IsValid())
+		{
+			OnJoinSessionCompleteDelegateHandle = Sessions->AddOnJoinSessionCompleteDelegate_Handle(OnJoinSessionCompleteDelegate);
+			return Sessions->JoinSession(*LocalPlayer->GetPreferredUniqueNetId().GetUniqueNetId(), GameSessionName, SearchResult);
+		}
 	}
 
-	IOnlineSessionPtr Sessions = OnlineSub->GetSessionInterface();
-	if (!Sessions.IsValid() || !UserId.IsValid())
-	{
-		return false;
-	}
-
-	OnJoinSessionCompleteDelegateHandle = Sessions->AddOnJoinSessionCompleteDelegate_Handle(OnJoinSessionCompleteDelegate);
-	return Sessions->JoinSession(*UserId, SessionName, SearchResult);
+	return false;
 }
 
-void UShootingGameInstance::StartOnlineGame(bool bIsLan, bool bIsPresence, int32 MaxNumPlayers)
+void UShootingGameInstance::HostOnlineGame(bool bIsLan, bool bIsPresence, int32 MaxNumPlayers)
 {
-	DestroySessionAndLeaveGame();
 	ULocalPlayer* Player = GetFirstGamePlayer();
+	UE_LOG(LogTemp, Log, TEXT("Host Online Game, pid = %s"), *Player->GetPreferredUniqueNetId().GetUniqueNetId()->ToString());
+	OnlineGamePlayerLimit = MaxNumPlayers;
 	HostSession(Player->GetPreferredUniqueNetId().GetUniqueNetId(), GameSessionName, bIsLan, bIsPresence, MaxNumPlayers);
+}
+
+void UShootingGameInstance::StartOnlineGame()
+{
+	UE_LOG(LogTemp, Log, TEXT("Start Online Game"));
+
+	if (GetWorld()->GetAuthGameMode())
+	{
+		OnlineGamePlayerNumber = GetWorld()->GetAuthGameMode()->GetNumPlayers();
+		UE_LOG(LogTemp, Log, TEXT("Start Online Game, Player Number = %d"), OnlineGamePlayerNumber);
+	}
+
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		AShootingPlayerController* PlayerController = Cast<AShootingPlayerController>(*It);
+		if (PlayerController)
+		{
+			PlayerController->StartOnlineGame_Client();
+		}
+	}
+
+	const FString GameMapUrl = "/Game/Maps/GameMap";
+	GetWorld()->ServerTravel(GameMapUrl);
 }
 
 void UShootingGameInstance::FindOnlineGames(bool bIsLan, bool bIsPresence)
 {
 	ULocalPlayer* Player = GetFirstGamePlayer();
+	UE_LOG(LogTemp, Log, TEXT("Find Online Game, pid = %s"), *Player->GetPreferredUniqueNetId().GetUniqueNetId()->ToString());
 	FindSessions(Player->GetPreferredUniqueNetId().GetUniqueNetId(), bIsLan, bIsPresence);
 }
 
-void UShootingGameInstance::JoinOnlineGame()
+void UShootingGameInstance::JoinOnlineGame(const FOnlineSessionSearchResult& SearchResult)
 {
 	ULocalPlayer* Player = GetFirstGamePlayer();
+	JoinSession(Player, SearchResult);
 
-	FOnlineSessionSearchResult SearchResult;
-	if (SessionSearch->SearchResults.Num() > 0)
-	{
-		for (int32 i = 0; i < SessionSearch->SearchResults.Num(); i++)
-		{
-			if (SessionSearch->SearchResults[i].Session.OwningUserId != Player->GetPreferredUniqueNetId().GetUniqueNetId())
-			{
-				SearchResult = SessionSearch->SearchResults[i];
-				JoinCertainSession(Player->GetPreferredUniqueNetId().GetUniqueNetId(), GameSessionName, SearchResult);
-				break;
-			}
-		}
-	}	
+	// UE_LOG(LogTemp, Log, TEXT("[Join Online Game] Num Search Results: %d"), SessionSearch->SearchResults.Num());
+	// if (SessionSearch->SearchResults.Num() > 0)
+	// {
+	// 	for (int32 i = 0; i < SessionSearch->SearchResults.Num(); i++)
+	// 	{
+	// 		if (SessionSearch->SearchResults[i].Session.OwningUserId != Player->GetPreferredUniqueNetId().GetUniqueNetId())
+	// 		{
+	// 			const FOnlineSessionSearchResult SearchResult = SessionSearch->SearchResults[i];
+	// 			JoinSession(Player, SearchResult);
+	// 			break;
+	// 		}
+	// 	}
+	// }
 }
 
 void UShootingGameInstance::DestroySessionAndLeaveGame()
@@ -238,120 +218,97 @@ void UShootingGameInstance::DestroySessionAndLeaveGame()
 
 void UShootingGameInstance::OnCreateSessionComplete(FName SessionName, bool bWasSuccessful)
 {
-	// UE_LOG(LogTemp, Warning, TEXT("OnCreateSessionComplete %s, %d"), *SessionName.ToString(), bWasSuccessful);
+	UE_LOG(LogTemp, Log, TEXT("OnCreateSessionComplete %s, %d"), *SessionName.ToString(), bWasSuccessful);
 
-	IOnlineSubsystem* OnlineSub = IOnlineSubsystem::Get();
-	if (!OnlineSub)
+	IOnlineSubsystem* OnlineSub = Online::GetSubsystem(GetWorld());
+	if (OnlineSub)
 	{
-		return;
-	}
-	IOnlineSessionPtr Sessions = OnlineSub->GetSessionInterface();
-	if (!Sessions.IsValid())
-	{
-		return;
-	}
-
-	Sessions->ClearOnCreateSessionCompleteDelegate_Handle(OnCreateSessionCompleteDelegateHandle);
-	if (bWasSuccessful)
-	{
-		OnStartSessionCompleteDelegateHandle = Sessions->AddOnStartSessionCompleteDelegate_Handle(OnStartSessionCompleteDelegate);
-		Sessions->StartSession(SessionName);
+		IOnlineSessionPtr Sessions = OnlineSub->GetSessionInterface();
+		Sessions->ClearOnCreateSessionCompleteDelegate_Handle(OnCreateSessionCompleteDelegateHandle);
 	}
 }
 
 void UShootingGameInstance::OnStartSessionComplete(FName SessionName, bool bWasSuccessful)
 {
-	// UE_LOG(LogTemp, Warning, TEXT("OnStartSessionComplete %s, %d"), *SessionName.ToString(), bWasSuccessful);
+	UE_LOG(LogTemp, Log, TEXT("OnStartSessionComplete %s, %d"), *SessionName.ToString(), bWasSuccessful);
 
-	IOnlineSubsystem* OnlineSub = IOnlineSubsystem::Get();
-	if (!OnlineSub)
+	IOnlineSubsystem* OnlineSub = Online::GetSubsystem(GetWorld());
+	if (OnlineSub)
 	{
-		return;
-	}
-	IOnlineSessionPtr Sessions = OnlineSub->GetSessionInterface();
-	if (Sessions.IsValid())
-	{
-		Sessions->ClearOnStartSessionCompleteDelegate_Handle(OnStartSessionCompleteDelegateHandle);
-	}
-
-	if (bWasSuccessful)
-	{
-		UGameplayStatics::OpenLevel(GetWorld(), "ThirdPersonExampleMap", true, "listen");
+		IOnlineSessionPtr Sessions = OnlineSub->GetSessionInterface();
+		if (Sessions.IsValid())
+		{
+			Sessions->ClearOnStartSessionCompleteDelegate_Handle(OnStartSessionCompleteDelegateHandle);
+		}
 	}
 }
 
 void UShootingGameInstance::OnFindSessionsComplete(bool bWasSuccessful)
 {
-	// UE_LOG(LogTemp, Warning, TEXT("OFindSessionsComplete bSuccess: %d"), bWasSuccessful);
+	UE_LOG(LogTemp, Log, TEXT("OFindSessionsComplete bSuccess: %d"), bWasSuccessful);
 
-	// Get OnlineSubsystem we want to work with
-	IOnlineSubsystem* OnlineSub = IOnlineSubsystem::Get();
-	if (!OnlineSub)
+	IOnlineSubsystem* const OnlineSub = Online::GetSubsystem(GetWorld());
+	if (OnlineSub)
 	{
-		return;
-	}
-	IOnlineSessionPtr Sessions = OnlineSub->GetSessionInterface();
-	if (!Sessions.IsValid())
-	{
-		return;
-	}
-	Sessions->ClearOnFindSessionsCompleteDelegate_Handle(OnFindSessionsCompleteDelegateHandle);
-
-	UE_LOG(LogTemp, Warning, TEXT("Num Search Results: %d"), SessionSearch->SearchResults.Num());
-
-	if (SessionSearch->SearchResults.Num() > 0)
-	{
-		for (int32 SearchIdx = 0; SearchIdx < SessionSearch->SearchResults.Num(); SearchIdx++)
+		IOnlineSessionPtr Sessions = OnlineSub->GetSessionInterface();
+		if (Sessions.IsValid())
 		{
-			// UE_LOG(LogTemp, Warning, TEXT("Session Number: %d | Session Name: %s "), SearchIdx + 1, *(SessionSearch->SearchResults[SearchIdx].Session.OwningUserName));
+			Sessions->ClearOnFindSessionsCompleteDelegate_Handle(OnFindSessionsCompleteDelegateHandle);
+
+			UE_LOG(LogTemp, Log, TEXT("[Find Online Game] Num Search Results: %d"), SessionSearch->SearchResults.Num());
+			for (int32 i = 0; i < SessionSearch->SearchResults.Num(); i++)
+			{
+				const FOnlineSessionSearchResult& SearchResult = SessionSearch->SearchResults[i];
+				UE_LOG(LogTemp, Log, TEXT(" Search Result: Owner: %s"), *SearchResult.Session.OwningUserId->ToString());
+				DumpSession(&SearchResult.Session);
+				JoinOnlineGame(SearchResult);
+			}
 		}
 	}
 }
 
 void UShootingGameInstance::OnJoinSessionComplete(FName SessionName, EOnJoinSessionCompleteResult::Type Result)
 {
-	// UE_LOG(LogTemp, Warning, TEXT("OnJoinSessionComplete %s, %d"), *SessionName.ToString(), static_cast<int32>(Result));
+	UE_LOG(LogTemp, Log, TEXT("OnJoinSessionComplete %s, Res = %d (0 is OK)"), *SessionName.ToString(), static_cast<int32>(Result));
 
-	// Get the OnlineSubsystem we want to work with
-	IOnlineSubsystem* OnlineSub = IOnlineSubsystem::Get();
-	if (!OnlineSub)
+	IOnlineSubsystem* const OnlineSub = Online::GetSubsystem(GetWorld());
+	if (OnlineSub)
 	{
-		return;
+		IOnlineSessionPtr Sessions = OnlineSub->GetSessionInterface();
+		if (Sessions.IsValid())
+		{
+			Sessions->ClearOnJoinSessionCompleteDelegate_Handle(OnJoinSessionCompleteDelegateHandle);
+		}
 	}
-	IOnlineSessionPtr Sessions = OnlineSub->GetSessionInterface();
-	if (!Sessions.IsValid())
+	
+	if (Result == EOnJoinSessionCompleteResult::Type::Success)
 	{
-		return;
-	}
-
-	Sessions->ClearOnJoinSessionCompleteDelegate_Handle(OnJoinSessionCompleteDelegateHandle);
-
-	APlayerController* PlayerController = GetFirstLocalPlayerController();
-	FString TravelURL;
-	if (PlayerController && Sessions->GetResolvedConnectString(SessionName, TravelURL))
-	{
-		// UE_LOG(LogTemp, Warning, TEXT("Travel URL: %s"), *TravelURL);
-		PlayerController->ClientTravel(TravelURL, ETravelType::TRAVEL_Absolute);
+		const TArray<ULocalPlayer*> LocalPlayersTemp = GetLocalPlayers();
+		int32 Id = -1;
+		for (int32 i = 0; i < LocalPlayersTemp.Num(); i++)
+		{
+			if (GetPrimaryPlayerController()->GetLocalPlayer() == LocalPlayersTemp[i])
+			{
+				Id = i;
+				break;
+			}
+		}
+		if (Id >= 0)
+		{
+			ClientTravelToSession(Id, NAME_GameSession);
+		}
 	}
 }
 
 void UShootingGameInstance::OnDestroySessionComplete(FName SessionName, bool bWasSuccessful)
 {
-	// UE_LOG(LogTemp, Warning, TEXT("OnDestroySessionComplete %s, %d"), *SessionName.ToString(), bWasSuccessful);
+	UE_LOG(LogTemp, Log, TEXT("OnDestroySessionComplete %s, %d"), *SessionName.ToString(), bWasSuccessful);
 
-	IOnlineSubsystem* OnlineSub = IOnlineSubsystem::Get();
-	if (!OnlineSub)
+	IOnlineSubsystem* OnlineSub = Online::GetSubsystem(GetWorld());
+	if (OnlineSub)
 	{
-		return;
-	}
-	IOnlineSessionPtr Sessions = OnlineSub->GetSessionInterface();
-
-	if (Sessions.IsValid())
-	{
+		IOnlineSessionPtr Sessions = OnlineSub->GetSessionInterface();
 		Sessions->ClearOnDestroySessionCompleteDelegate_Handle(OnDestroySessionCompleteDelegateHandle);
-		if (bWasSuccessful)
-		{
-			UGameplayStatics::OpenLevel(GetWorld(), "MainMenuMap", true);
-		}
+		SessionSettings = nullptr;
 	}
 }
