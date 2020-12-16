@@ -21,8 +21,6 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TSubclassOf<class ASoundHelper> SoundHelperClass;
 
-    void HitTarget(ACharacter* Character, const FHitResult& Hit) const;
-
     UFUNCTION(Server, Reliable)
     void HitCharacter_Server(ACharacter* Character, const FHitResult& Hit, int32 Damage) const;
     void HitCharacter_Server_Implementation(ACharacter* Character, const FHitResult& Hit, int32 Damage) const;
@@ -32,5 +30,5 @@ protected:
 public:
     virtual void BeginPlay() override;
     
-    virtual void Fire(ACharacter* Character, const FVector& Start, const FVector& Direction) const override;
+    virtual void Fire(ACharacter* Character, const FVector& Start, const FVector& Direction) override;
 };

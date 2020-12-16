@@ -2,6 +2,8 @@
 
 #include "ShootingCharacter.h"
 
+
+#include "AIController.h"
 #include "Animation/AnimMontage.h"
 #include "Blueprint/UserWidget.h"
 #include "Camera/CameraComponent.h"
@@ -236,6 +238,10 @@ FString AShootingCharacter::GetWeaponName() const
 	return Weapon ? Weapon->GetWeaponName() : "No Weapon";
 }
 
+bool AShootingCharacter::HasValidWeapon() const
+{
+	return Weapon && Weapon->CanFire();
+}
 
 void AShootingCharacter::StartGame()
 {
@@ -257,15 +263,15 @@ void AShootingCharacter::EndGame()
 
 void AShootingCharacter::FireBegin()
 {
-	if (bIsBlocking || bIsFiring || Weapon == nullptr || !bInGame || Health <= 0)
+	if (bIsBlocking || bIsFiring || !HasValidWeapon() || !bInGame || Health <= 0)
 	{
 		return;
 	}
-
+	
 	Fire_Server();
 	GetWorldTimerManager().SetTimer(FireTimerHandle, this, &AShootingCharacter::FireEnd, 0.8f);
 	const FVector Direction = FollowCamera->GetForwardVector();
-	const FVector Start = GetActorLocation() + Direction * 25.0f + FVector(0.0f, 0.0f, 50.0f);
+	const FVector Start = GetActorLocation() + Direction * 50.0f + FVector(0.0f, 0.0f, 50.0f);
 	Weapon->Fire(this, Start, Direction);
 }
 
@@ -309,6 +315,14 @@ float AShootingCharacter::TakeDamage(float DamageAmount, const FDamageEvent& Dam
 		Health = 0;
 		OnDeath(Cast<AShootingCharacter>(EventInstigator->GetPawn()));		
 	}
+	else if (DamageAmount > 0)
+	{
+		AShootingPlayerController* ShootingPlayerController = Cast<AShootingPlayerController>(GetController());
+		if (ShootingPlayerController)
+		{
+			ShootingPlayerController->AddHurtUIToViewport_Client();
+		}
+	}
 	return DamageAmount;
 }
 
@@ -346,9 +360,14 @@ void AShootingCharacter::OnDeath(AShootingCharacter* Killer)
 
 	AShootingGameMode* ShootingGameMode = Cast<AShootingGameMode>(GetWorld()->GetAuthGameMode());
 	APlayerController* PlayerController = Cast<APlayerController>(GetController());
+	AAIController* AIController = Cast<AAIController>(GetController());
 	if (ShootingGameMode && PlayerController)
 	{
 		ShootingGameMode->RestartPlayerDelay(PlayerController, 5.0f);
+	}
+	else if (ShootingGameMode && AIController)
+	{
+		ShootingGameMode->RestartBotDelay(5.0f);
 	}
 
 	PlayDeathMontage_Multicast();
@@ -357,7 +376,6 @@ void AShootingCharacter::OnDeath(AShootingCharacter* Killer)
 
 void AShootingCharacter::AfterDeath()
 {
-	// TODO - restart
 	AShootingPlayerController* ShootingPlayerController = Cast<AShootingPlayerController>(GetController());
 	if (ShootingPlayerController)
 	{

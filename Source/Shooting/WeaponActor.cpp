@@ -39,6 +39,17 @@ void AWeaponActor::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 }
 
-void AWeaponActor::Fire(ACharacter* Character, const FVector& Start, const FVector& Direction) const
+void AWeaponActor::Fire(ACharacter* Character, const FVector& Start, const FVector& Direction)
 {
+	--BulletCount;
 }
+
+FString AWeaponActor::GetWeaponName() const
+{
+	if (BulletCount <= 0)
+	{
+		return WeaponName + " (No Bullet !)";
+	}
+	return WeaponName + " (# of Bullet: " + FString::FromInt(BulletCount) + ")"; 
+}
+

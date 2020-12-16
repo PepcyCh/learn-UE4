@@ -16,6 +16,8 @@ protected:
 	FTimerHandle GameTimerHandle;
 	UPROPERTY()
 	FTimerHandle RetryTimerHandle;
+	UPROPERTY()
+	FTimerHandle HurtUITimerHandle;
 
 	UPROPERTY()
 	class UUserWidget* MainGameUI = nullptr;
@@ -33,6 +35,10 @@ protected:
 	class UUserWidget* DyingUI = nullptr;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TSubclassOf<class UUserWidget> DyingUIClass;
+	UPROPERTY()
+	class UUserWidget* HurtUI = nullptr;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TSubclassOf<class UUserWidget> HurtUIClass;
 
 	void UpdateMainGameUI();
 	
@@ -62,4 +68,6 @@ public:
 	
 	UFUNCTION(Client, Reliable)
     void AddDyingUIToViewport_Client();
+	UFUNCTION(Client, Reliable)
+    void AddHurtUIToViewport_Client();
 };

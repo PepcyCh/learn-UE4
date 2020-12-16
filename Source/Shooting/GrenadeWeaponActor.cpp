@@ -8,8 +8,15 @@
 #include "GameFramework/Controller.h"
 #include "Components/StaticMeshComponent.h"
 
-void AGrenadeWeaponActor::Fire(ACharacter* Character, const FVector& Start, const FVector& Direction) const
+AGrenadeWeaponActor::AGrenadeWeaponActor()
 {
+    BulletCount = 1;
+}
+
+
+void AGrenadeWeaponActor::Fire(ACharacter* Character, const FVector& Start, const FVector& Direction)
+{
+    Super::Fire(Character, Start, Direction);
     Fire_Server(Character, Start, Direction);
 }
 

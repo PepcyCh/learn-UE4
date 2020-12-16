@@ -155,7 +155,7 @@ void AShootingPlayerController::LeaveOnlineGame_Client_Implementation()
         }
     }
 
-    UGameplayStatics::OpenLevel(GetWorld(), "/Game/Maps/MainMenu");
+    UGameplayStatics::OpenLevel(GetWorld(), "/Game/Maps/MainMenuMap");
 }
 
 int32 AShootingPlayerController::GetRemainingTime() const
@@ -203,9 +203,24 @@ void AShootingPlayerController::AddDyingUIToViewport_Client_Implementation()
     {
         DyingUI = CreateWidget<UUserWidget>(this, DyingUIClass);
     }
-    if (DyingUI)
+    if (DyingUI && GetWorldTimerManager().GetTimerRemaining(GameTimerHandle) > 0.0f)
     {
         DyingUI->AddToViewport();
+    }
+}
+void AShootingPlayerController::AddHurtUIToViewport_Client_Implementation()
+{
+    if (!HurtUI && HurtUIClass)
+    {
+        HurtUI = CreateWidget<UUserWidget>(this, HurtUIClass);
+    }
+    if (HurtUI && GetWorldTimerManager().GetTimerRemaining(GameTimerHandle) > 0.0f)
+    {
+        HurtUI->AddToViewport();
+        GetWorldTimerManager().SetTimer(HurtUITimerHandle, [this]()
+        {
+            HurtUI->RemoveFromViewport();
+        }, 0.25f, false);
     }
 }
 

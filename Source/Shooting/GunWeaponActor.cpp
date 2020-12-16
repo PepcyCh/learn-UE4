@@ -4,7 +4,6 @@
 #include "GunWeaponActor.h"
 
 #include "ShootingCharacter.h"
-#include "ShootingPlayerState.h"
 #include "SoundHelper.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/DamageType.h"
@@ -19,8 +18,10 @@ void AGunWeaponActor::BeginPlay()
     }
 }
 
-void AGunWeaponActor::Fire(ACharacter* Character, const FVector& Start, const FVector& Direction) const
+void AGunWeaponActor::Fire(ACharacter* Character, const FVector& Start, const FVector& Direction)
 {
+    Super::Fire(Character, Start, Direction);
+    
     const float ShootRayLength = 10000.0f;
     const FVector End = Start + Direction * ShootRayLength;
 
@@ -134,7 +135,6 @@ void AGunWeaponActor::Fire(ACharacter* Character, const FVector& Start, const FV
 
 void AGunWeaponActor::HitCharacter_Server_Implementation(ACharacter* Character, const FHitResult& Hit, int32 Damage) const
 {
-    UE_LOG(LogTemp, Log, TEXT("GunHitChar, Damage = %d"), Damage);
     AShootingCharacter* ShootingCharacter = Cast<AShootingCharacter>(Character);
     AShootingCharacter* HitShootingCharacter = Cast<AShootingCharacter>(Hit.Actor);
     if (ShootingCharacter == nullptr || HitShootingCharacter == nullptr)

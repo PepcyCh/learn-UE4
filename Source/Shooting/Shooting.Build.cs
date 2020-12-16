@@ -19,6 +19,7 @@ public class Shooting : ModuleRules
 			"UMG",
 			"SlateCore",
 			"Slate",
+			// "GameplayTasks"
 		});
 
 		DynamicallyLoadedModuleNames.Add("OnlineSubsystemNull");

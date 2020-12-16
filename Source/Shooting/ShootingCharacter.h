@@ -139,6 +139,8 @@ public:
 	int32 GetHealth() const { return Health; }
 
 	FString GetWeaponName() const;
+	UFUNCTION(BlueprintCallable)
+	bool HasValidWeapon() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Character")
 	bool GetIsDead() const { return bIsDead; }

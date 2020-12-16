@@ -16,7 +16,9 @@ protected:
 	TSubclassOf<class AGrenadeActor> GrenadeClass;
 
 public:
-	virtual void Fire(ACharacter* Character, const FVector& Start, const FVector& Direction) const override;
+	AGrenadeWeaponActor();
+	
+	virtual void Fire(ACharacter* Character, const FVector& Start, const FVector& Direction) override;
 	UFUNCTION(Server, Reliable)
 	void Fire_Server(ACharacter* Character, const FVector& Start, const FVector& Direction) const;
 	void Fire_Server_Implementation(ACharacter* Character, const FVector& Start, const FVector& Direction) const;

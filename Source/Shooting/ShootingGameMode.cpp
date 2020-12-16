@@ -82,12 +82,63 @@ void AShootingGameMode::RestartPlayer(AController* NewPlayer)
 		}
 	}
 }
+void AShootingGameMode::SpawnBotCharacter()
+{
+	if (AIControllers.Num() == 0)
+	{
+		return;;
+	}
+
+	AActor* Start = ChoosePlayerStart_Implementation(nullptr);
+	if (Start)
+	{
+		ACharacter* Bot = GetWorld()->SpawnActor<ACharacter>(BotCharacterClass, Start->GetActorLocation(), Start->GetActorRotation());
+		if (Bot)
+		{
+			Bot->AIControllerClass = AIControllers[FMath::RandRange(0, AIControllers.Num() - 1)];
+			UE_LOG(LogTemp, Log, TEXT("Bot.AIC = %s"), *Bot->AIControllerClass->GetFName().ToString());
+			Bot->SpawnDefaultController();
+			AShootingCharacter* ShootingBot = Cast<AShootingCharacter>(Bot);
+			if (ShootingBot)
+			{
+				ShootingBot->StartGame();
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Bot is not instance of CustomCharClass"));
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Bot is NULL"));
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Stast is NULL"));
+	}
+	++SpawnedPlayerCount;
+}
+
 void AShootingGameMode::RestartPlayerDelay(APlayerController* NewPlayer, float DelayTime)
 {
 	GetWorldTimerManager().SetTimer(RestartTimerHandle, [this, NewPlayer]()
 	{
-		RestartPlayer(NewPlayer);
+		if (GetWorldTimerManager().GetTimerRemaining(GameTimerHandle) > 0.0f)
+		{
+			RestartPlayer(NewPlayer);
+		}
 	}, DelayTime, false);
+}
+void AShootingGameMode::RestartBotDelay(float DelayTime)
+{
+	GetWorldTimerManager().SetTimer(RestartTimerHandle, [this]()
+	{
+		if (GetWorldTimerManager().GetTimerRemaining(GameTimerHandle) > 0.0f)
+		{
+			SpawnBotCharacter();
+		}
+    }, DelayTime, false);
 }
 
 AActor* AShootingGameMode::ChoosePlayerStart_Implementation(AController* Controller)
@@ -172,8 +223,20 @@ FString AShootingGameMode::GetCurrentMapName()
 
 void AShootingGameMode::StartGameTimer()
 {
-	GetWorldTimerManager().SetTimer(GameTimerHandle, this, &AShootingGameMode::OnGameEnd, GameTime);
 	Cast<AShootingGameState>(GameState)->ChangeToState(EShootingState::InGame);
+
+	UShootingGameInstance* ShootingGameInstance = Cast<UShootingGameInstance>(GetGameInstance());
+	const int32 PlayerLimit = ShootingGameInstance ? ShootingGameInstance->GetOnlineGamePlayerLimit() : SpawnedPlayerCount;
+	const int32 BotCount = PlayerLimit - SpawnedPlayerCount;
+	if (BotCharacterClass)
+	{
+		for (int32 i = 0; i < BotCount; i++)
+		{
+			SpawnBotCharacter();
+		}
+	}
+
+	GetWorldTimerManager().SetTimer(GameTimerHandle, this, &AShootingGameMode::OnGameEnd, GameTime);
 }
 void AShootingGameMode::OnGameEnd() const
 {

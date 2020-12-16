@@ -4,6 +4,8 @@
 
 #include "CoreMinimal.h"
 
+
+#include "AIController.h"
 #include "WeaponActor.h"
 #include "GameFramework/GameMode.h"
 #include "ShootingGameMode.generated.h"
@@ -41,9 +43,17 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TArray<TSubclassOf<AWeaponActor>> Weapons;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<TSubclassOf<AAIController>> AIControllers;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TSubclassOf<ACharacter> BotCharacterClass;
+
 	virtual void BeginPlay() override;
 
 	virtual AActor* ChoosePlayerStart_Implementation(AController* Controller) override;
+
+	void SpawnBotCharacter();
 
 public:
 	AShootingGameMode();
@@ -59,6 +69,7 @@ public:
 	void OnGameEnd() const;
 
 	void RestartPlayerDelay(APlayerController* NewPlayer, float DelayTime);
+	void RestartBotDelay(float DelayTime);
 	
 };
 
